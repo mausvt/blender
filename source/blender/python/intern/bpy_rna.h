@@ -67,6 +67,10 @@
 
 struct ID;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern PyTypeObject pyrna_struct_meta_idprop_Type;
 extern PyTypeObject pyrna_struct_Type;
 extern PyTypeObject pyrna_prop_Type;
@@ -185,7 +189,6 @@ PyObject *BPY_rna_module(void);
 void BPY_update_rna_module(void);
 /*PyObject *BPY_rna_doc(void);*/
 PyObject *BPY_rna_types(void);
-void BPY_rna_register_cb(void);
 
 PyObject *pyrna_struct_CreatePyObject(PointerRNA *ptr);
 PyObject *pyrna_prop_CreatePyObject(PointerRNA *ptr, PropertyRNA *prop);
@@ -220,6 +223,10 @@ int pyrna_enum_value_from_id(const EnumPropertyItem *item,
                              const char *error_prefix);
 
 int pyrna_deferred_register_class(struct StructRNA *srna, PyTypeObject *py_class);
+
+void pyrna_struct_type_extend_capi(struct StructRNA *srna,
+                                   struct PyMethodDef *py_method,
+                                   struct PyGetSetDef *py_getset);
 
 /* called before stopping python */
 void pyrna_alloc_types(void);
@@ -261,5 +268,9 @@ extern PyMethodDef meth_bpy_owner_id_set;
 extern PyMethodDef meth_bpy_owner_id_get;
 
 extern BPy_StructRNA *bpy_context_module;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

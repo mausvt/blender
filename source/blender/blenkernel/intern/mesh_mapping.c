@@ -26,13 +26,13 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_vec_types.h"
 
-#include "BLI_buffer.h"
-#include "BLI_utildefines.h"
 #include "BLI_bitmap.h"
+#include "BLI_buffer.h"
 #include "BLI_math.h"
+#include "BLI_utildefines.h"
 
-#include "BKE_mesh_mapping.h"
 #include "BKE_customdata.h"
+#include "BKE_mesh_mapping.h"
 #include "BLI_memarena.h"
 
 #include "BLI_strict_flags.h"
@@ -953,7 +953,7 @@ void BKE_mesh_loop_islands_free(MeshIslandStore *island_store)
 
 void BKE_mesh_loop_islands_add(MeshIslandStore *island_store,
                                const int item_num,
-                               int *items_indices,
+                               const int *items_indices,
                                const int num_island_items,
                                int *island_item_indices,
                                const int num_innercut_items,

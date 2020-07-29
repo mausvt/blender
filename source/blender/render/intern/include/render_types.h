@@ -28,8 +28,8 @@
 /* exposed internal in render module only! */
 /* ------------------------------------------------------------------------- */
 
-#include "DNA_scene_types.h"
 #include "DNA_object_types.h"
+#include "DNA_scene_types.h"
 
 #include "BLI_threads.h"
 
@@ -42,6 +42,10 @@ struct Main;
 struct Object;
 struct RenderEngine;
 struct ReportList;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* this is handed over to threaded hiding/passes/shading engine */
 typedef struct RenderPart {
@@ -123,11 +127,6 @@ struct Render {
   Depsgraph *pipeline_depsgraph;
   Scene *pipeline_scene_eval;
 
-#ifdef WITH_FREESTYLE
-  struct Main *freestyle_bmain;
-  ListBase freestyle_renders;
-#endif
-
   /* callbacks */
   void (*display_init)(void *handle, RenderResult *rr);
   void *dih;
@@ -164,5 +163,9 @@ struct Render {
 
 /* R.flag */
 #define R_ANIMATION 1
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __RENDER_TYPES_H__ */

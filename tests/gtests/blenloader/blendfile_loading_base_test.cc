@@ -19,24 +19,24 @@
 
 #include "MEM_guardedalloc.h"
 
-extern "C" {
 #include "BKE_appdir.h"
 #include "BKE_blender.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_idtype.h"
 #include "BKE_image.h"
 #include "BKE_main.h"
 #include "BKE_modifier.h"
 #include "BKE_node.h"
 #include "BKE_scene.h"
 
-#include "BLI_threads.h"
 #include "BLI_path_util.h"
+#include "BLI_threads.h"
 
 #include "BLO_readfile.h"
 
-#include "DEG_depsgraph_build.h"
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
 
 #include "DNA_genfile.h" /* for DNA_sdna_current_init() */
 #include "DNA_windowmanager_types.h"
@@ -47,9 +47,6 @@ extern "C" {
 
 #include "WM_api.h"
 #include "wm.h"
-}
-
-DEFINE_string(test_assets_dir, "", "lib/tests directory from SVN containing the test assets.");
 
 BlendfileLoadingBaseTest::~BlendfileLoadingBaseTest()
 {
@@ -65,6 +62,8 @@ void BlendfileLoadingBaseTest::SetUpTestCase()
 
   DNA_sdna_current_init();
   BKE_blender_globals_init();
+
+  BKE_idtype_init();
   IMB_init();
   BKE_images_init();
   BKE_modifier_init();
@@ -99,14 +98,6 @@ void BlendfileLoadingBaseTest::TearDownTestCase()
 
   BKE_blender_atexit();
 
-  if (MEM_get_memory_blocks_in_use() != 0) {
-    size_t mem_in_use = MEM_get_memory_in_use() + MEM_get_memory_in_use();
-    printf("Error: Not freed memory blocks: %u, total unfreed memory %f MB\n",
-           MEM_get_memory_blocks_in_use(),
-           (double)mem_in_use / 1024 / 1024);
-    MEM_printmemlist();
-  }
-
   BKE_tempdir_session_purge();
 
   testing::Test::TearDownTestCase();
@@ -122,19 +113,18 @@ void BlendfileLoadingBaseTest::TearDown()
 
 bool BlendfileLoadingBaseTest::blendfile_load(const char *filepath)
 {
-  if (FLAGS_test_assets_dir.empty()) {
-    ADD_FAILURE()
-        << "Pass the flag --test-assets-dir and point to the lib/tests directory from SVN.";
+  const std::string &test_assets_dir = blender::tests::flags_test_asset_dir();
+  if (test_assets_dir.empty()) {
     return false;
   }
 
   char abspath[FILENAME_MAX];
-  BLI_path_join(abspath, sizeof(abspath), FLAGS_test_assets_dir.c_str(), filepath, NULL);
+  BLI_path_join(abspath, sizeof(abspath), test_assets_dir.c_str(), filepath, NULL);
 
   bfile = BLO_read_from_file(abspath, BLO_READ_SKIP_NONE, NULL /* reports */);
   if (bfile == nullptr) {
     ADD_FAILURE() << "Unable to load file '" << filepath << "' from test assets dir '"
-                  << FLAGS_test_assets_dir << "'";
+                  << test_assets_dir << "'";
     return false;
   }
   return true;

@@ -24,12 +24,12 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_utildefines.h"
 #include "BLI_math_base.h"
+#include "BLI_utildefines.h"
 
-#include "IMB_imbuf_types.h"
-#include "IMB_imbuf.h"
 #include "IMB_filter.h"
+#include "IMB_imbuf.h"
+#include "IMB_imbuf_types.h"
 
 #include "imbuf.h"
 
@@ -363,7 +363,7 @@ void IMB_mask_filter_extend(char *mask, int width, int height)
   MEM_freeN(temprect);
 }
 
-void IMB_mask_clear(ImBuf *ibuf, char *mask, int val)
+void IMB_mask_clear(ImBuf *ibuf, const char *mask, int val)
 {
   int x, y;
   if (ibuf->rect_float) {

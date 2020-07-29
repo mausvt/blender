@@ -25,13 +25,14 @@
  * \brief Blender kernel action and pose functionality.
  */
 
+#include "DNA_listBase.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "DNA_listBase.h"
-
 /* The following structures are defined in DNA_action_types.h, and DNA_anim_types.h */
+struct AnimationEvalContext;
 struct FCurve;
 struct Main;
 struct Object;
@@ -47,17 +48,8 @@ struct bPoseChannel_Runtime;
 /* Allocate a new bAction with the given name */
 struct bAction *BKE_action_add(struct Main *bmain, const char name[]);
 
-void BKE_action_copy_data(struct Main *bmain,
-                          struct bAction *act_dst,
-                          const struct bAction *act_src,
-                          const int flag);
 /* Allocate a copy of the given Action and all its data */
 struct bAction *BKE_action_copy(struct Main *bmain, const struct bAction *act_src);
-
-/* Deallocate all of the Action's data, but not the Action itself */
-void BKE_action_free(struct bAction *act);
-
-void BKE_action_make_local(struct Main *bmain, struct bAction *act, const bool lib_local);
 
 /* Action API ----------------- */
 
@@ -211,14 +203,14 @@ void what_does_obaction(struct Object *ob,
                         struct bPose *pose,
                         struct bAction *act,
                         char groupname[],
-                        float cframe);
+                        const struct AnimationEvalContext *anim_eval_context);
 
 /* for proxy */
 void BKE_pose_copy_pchan_result(struct bPoseChannel *pchanto,
                                 const struct bPoseChannel *pchanfrom);
 bool BKE_pose_copy_result(struct bPose *to, struct bPose *from);
-/* clear all transforms */
-void BKE_pose_rest(struct bPose *pose);
+/* Clear transforms. */
+void BKE_pose_rest(struct bPose *pose, bool selected_bones_only);
 
 /* Tag pose for recalc. Also tag all related data to be recalc. */
 void BKE_pose_tag_recalc(struct Main *bmain, struct bPose *pose);

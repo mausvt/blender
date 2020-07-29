@@ -24,15 +24,18 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_utildefines.h"
 #include "BLI_endian_switch.h"
-#include "BLI_path_util.h"
-#include "BLI_string.h"
 #include "BLI_fileops.h"
 #include "BLI_ghash.h"
+#include "BLI_path_util.h"
+#include "BLI_string.h"
+#include "BLI_utildefines.h"
+#ifdef _WIN32
+#  include "BLI_winstuff.h"
+#endif
 
-#include "IMB_indexer.h"
 #include "IMB_anim.h"
+#include "IMB_indexer.h"
 #include "imbuf.h"
 
 #include "BKE_global.h"
@@ -891,7 +894,7 @@ static void index_rebuild_ffmpeg_proc_decoded_frame(FFmpegIndexBuilderContext *c
 }
 
 static int index_rebuild_ffmpeg(FFmpegIndexBuilderContext *context,
-                                short *stop,
+                                const short *stop,
                                 short *do_update,
                                 float *progress)
 {
@@ -1087,7 +1090,7 @@ static void index_rebuild_fallback_finish(FallbackIndexBuilderContext *context, 
 }
 
 static void index_rebuild_fallback(FallbackIndexBuilderContext *context,
-                                   short *stop,
+                                   const short *stop,
                                    short *do_update,
                                    float *progress)
 {

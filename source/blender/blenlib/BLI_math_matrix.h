@@ -26,11 +26,12 @@
  * \ingroup bli
  */
 
+#include "BLI_compiler_attrs.h"
+#include "BLI_sys_types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "BLI_compiler_attrs.h"
 
 /********************************* Init **************************************/
 
@@ -63,7 +64,7 @@ void swap_m3m3(float A[3][3], float B[3][3]);
 void swap_m4m4(float A[4][4], float B[4][4]);
 
 /* Build index shuffle matrix */
-void shuffle_m4(float R[4][4], int index[4]);
+void shuffle_m4(float R[4][4], const int index[4]);
 
 /******************************** Arithmetic *********************************/
 

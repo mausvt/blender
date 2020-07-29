@@ -23,12 +23,12 @@
  * A minimalist lib for functions doing stuff with rectangle structs.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-#include <limits.h>
 #include <float.h>
+#include <limits.h>
 
 #include "BLI_rect.h"
 #include "BLI_utildefines.h"
@@ -633,6 +633,14 @@ void BLI_rcti_resize(rcti *rect, int x, int y)
   rect->ymin = BLI_rcti_cent_y(rect) - (y / 2);
   rect->xmax = rect->xmin + x;
   rect->ymax = rect->ymin + y;
+}
+
+void BLI_rcti_pad(rcti *rect, int pad_x, int pad_y)
+{
+  rect->xmin -= pad_x;
+  rect->ymin -= pad_y;
+  rect->xmax += pad_x;
+  rect->ymax += pad_y;
 }
 
 void BLI_rctf_resize(rctf *rect, float x, float y)

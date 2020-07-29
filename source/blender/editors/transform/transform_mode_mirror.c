@@ -50,11 +50,9 @@ static void applyMirror(TransInfo *t, const int UNUSED(mval[2]))
   char str[UI_MAX_DRAW_STR];
   copy_v3_v3(t->values_final, t->values);
 
-  /*
-   * OPTIMIZATION:
-   * This still recalcs transformation on mouse move
-   * while it should only recalc on constraint change
-   * */
+  /* OPTIMIZATION:
+   * This still recalculates transformation on mouse move
+   * while it should only recalculate on constraint change. */
 
   /* if an axis has been selected */
   if (t->con.mode & CON_APPLY) {
@@ -71,10 +69,6 @@ static void applyMirror(TransInfo *t, const int UNUSED(mval[2]))
     FOREACH_TRANS_DATA_CONTAINER (t, tc) {
       TransData *td = tc->data;
       for (i = 0; i < tc->data_len; i++, td++) {
-        if (td->flag & TD_NOACTION) {
-          break;
-        }
-
         if (td->flag & TD_SKIP) {
           continue;
         }
@@ -85,7 +79,7 @@ static void applyMirror(TransInfo *t, const int UNUSED(mval[2]))
 
     recalcData(t);
 
-    ED_area_status_text(t->sa, str);
+    ED_area_status_text(t->area, str);
   }
   else {
     size[0] = size[1] = size[2] = 1;
@@ -95,10 +89,6 @@ static void applyMirror(TransInfo *t, const int UNUSED(mval[2]))
     FOREACH_TRANS_DATA_CONTAINER (t, tc) {
       TransData *td = tc->data;
       for (i = 0; i < tc->data_len; i++, td++) {
-        if (td->flag & TD_NOACTION) {
-          break;
-        }
-
         if (td->flag & TD_SKIP) {
           continue;
         }
@@ -110,10 +100,10 @@ static void applyMirror(TransInfo *t, const int UNUSED(mval[2]))
     recalcData(t);
 
     if (t->flag & T_2D_EDIT) {
-      ED_area_status_text(t->sa, TIP_("Select a mirror axis (X, Y)"));
+      ED_area_status_text(t->area, TIP_("Select a mirror axis (X, Y)"));
     }
     else {
-      ED_area_status_text(t->sa, TIP_("Select a mirror axis (X, Y, Z)"));
+      ED_area_status_text(t->area, TIP_("Select a mirror axis (X, Y, Z)"));
     }
   }
 }

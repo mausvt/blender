@@ -22,9 +22,9 @@
 
 #include "../BPy_Convert.h"
 #include "../BPy_Id.h"
+#include "../BPy_Nature.h"
 #include "../Interface0D/BPy_SVertex.h"
 #include "../Interface1D/BPy_ViewEdge.h"
-#include "../BPy_Nature.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -81,7 +81,7 @@ static int FEdge_init(BPy_FEdge *self, PyObject *args, PyObject *kwds)
       self->fe = new FEdge(*(((BPy_FEdge *)obj1)->fe));
     }
   }
-  else if (PyErr_Clear(),
+  else if ((void)PyErr_Clear(),
            PyArg_ParseTupleAndKeywords(args,
                                        kwds,
                                        "O!O!",

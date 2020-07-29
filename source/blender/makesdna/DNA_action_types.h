@@ -28,15 +28,15 @@
 #ifndef __DNA_ACTION_TYPES_H__
 #define __DNA_ACTION_TYPES_H__
 
+#include "DNA_ID.h"
+#include "DNA_listBase.h"
+#include "DNA_userdef_types.h" /* ThemeWireColor */
+#include "DNA_vec_types.h"
+#include "DNA_view2d_types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "DNA_listBase.h"
-#include "DNA_ID.h"
-#include "DNA_view2d_types.h"
-#include "DNA_vec_types.h"
-#include "DNA_userdef_types.h" /* ThemeWireColor */
 
 struct Collection;
 struct GHash;
@@ -208,10 +208,11 @@ typedef struct bPoseChannel_Runtime {
 
 /* PoseChannel ------------------------------------ */
 
-/* PoseChannel
+/**
+ * PoseChannel
  *
- * A PoseChannel stores the results of Actions and transform information
- * with respect to the restposition of Armature bones
+ * A #bPoseChannel stores the results of Actions and transform information
+ * with respect to the rest-position of #bArmature bones.
  */
 typedef struct bPoseChannel {
   struct bPoseChannel *next, *prev;
@@ -297,7 +298,7 @@ typedef struct bPoseChannel {
   float disp_tail_mat[4][4];
   /**
    * Inverse result of constraints.
-   * doesn't include effect of restposition, parent, and local transform.
+   * doesn't include effect of rest-position, parent, and local transform.
    */
   float constinv[4][4];
 
@@ -702,8 +703,9 @@ typedef struct bDopeSheet {
   /** String to search for in displayed names of F-Curves, or NlaTracks/GP Layers/etc. */
   char searchstr[64];
 
-  /** Flags to use for filtering data. */
+  /** Flags to use for filtering data #eAnimFilter_Flags. */
   int filterflag;
+  /** #eDopeSheet_FilterFlag2 */
   int filterflag2;
   /** Standard flags. */
   int flag;
@@ -763,10 +765,6 @@ typedef enum eDopeSheet_FilterFlag {
   /** show only F-Curves which are disabled/have errors - for debugging drivers */
   ADS_FILTER_ONLY_ERRORS = (1 << 28),
 
-  /* GPencil Mode */
-  /** GP Mode - Only show datablocks used in the scene */
-  ADS_FILTER_GP_3DONLY = (1 << 29),
-
 #if 0
   /** combination filters (some only used at runtime) */
   ADS_FILTER_NOOBDATA = (ADS_FILTER_NOCAM | ADS_FILTER_NOMAT | ADS_FILTER_NOLAM |
@@ -779,6 +777,9 @@ typedef enum eDopeSheet_FilterFlag {
 typedef enum eDopeSheet_FilterFlag2 {
   ADS_FILTER_NOCACHEFILES = (1 << 1),
   ADS_FILTER_NOMOVIECLIPS = (1 << 2),
+  ADS_FILTER_NOHAIR = (1 << 3),
+  ADS_FILTER_NOPOINTCLOUD = (1 << 4),
+  ADS_FILTER_NOVOLUME = (1 << 5),
 } eDopeSheet_FilterFlag2;
 
 /* DopeSheet general flags */

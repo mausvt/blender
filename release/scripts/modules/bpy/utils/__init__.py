@@ -789,7 +789,7 @@ def register_tool(tool_cls, *, after=None, separator=False, group=False):
 
     cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
     if cls is None:
-        raise Exception(f"Space type {space_type!r} has no toolbar")
+        raise Exception("Space type %r has no toolbar" % space_type)
     tools = cls._tools[context_mode]
 
     # First sanity check
@@ -799,9 +799,9 @@ def register_tool(tool_cls, *, after=None, separator=False, group=False):
         if item is not None
     }
     if not issubclass(tool_cls, WorkSpaceTool):
-        raise Exception(f"Expected WorkSpaceTool subclass, not {type(tool_cls)!r}")
+        raise Exception("Expected WorkSpaceTool subclass, not %r" % type(tool_cls))
     if tool_cls.bl_idname in tools_id:
-        raise Exception(f"Tool {tool_cls.bl_idname!r} already exists!")
+        raise Exception("Tool %r already exists!" % tool_cls.bl_idname)
     del tools_id, WorkSpaceTool
 
     # Convert the class into a ToolDef.
@@ -830,9 +830,13 @@ def register_tool(tool_cls, *, after=None, separator=False, group=False):
                 context_descr = context_mode.replace("_", " ").title()
             from bpy import context
             wm = context.window_manager
-            kc = wm.keyconfigs.default
+            keyconfigs = wm.keyconfigs
+            kc_default = keyconfigs.default
+            # Note that Blender's default tools use the default key-config for both.
+            # We need to use the add-ons for 3rd party tools so reloading the key-map doesn't clear them.
+            kc = keyconfigs.addon
             if callable(keymap_data[0]):
-                cls._km_action_simple(kc, context_descr, tool_def.label, keymap_data)
+                cls._km_action_simple(kc_default, kc, context_descr, tool_def.label, keymap_data)
         return tool_def
 
     tool_converted = tool_from_class(tool_cls)
@@ -896,7 +900,7 @@ def unregister_tool(tool_cls):
     from bl_ui.space_toolsystem_common import ToolSelectPanelHelper
     cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
     if cls is None:
-        raise Exception(f"Space type {space_type!r} has no toolbar")
+        raise Exception("Space type %r has no toolbar" % space_type)
     tools = cls._tools[context_mode]
 
     tool_def = tool_cls._bl_tool
@@ -948,19 +952,20 @@ def unregister_tool(tool_cls):
                     break
 
     if not changed:
-        raise Exception(f"Unable to remove {tool_cls!r}")
+        raise Exception("Unable to remove %r" % tool_cls)
     del tool_cls._bl_tool
 
     keymap_data = tool_def.keymap
     if keymap_data is not None:
         from bpy import context
         wm = context.window_manager
-        kc = wm.keyconfigs.default
-        km = kc.keymaps.get(keymap_data[0])
-        if km is None:
-            print("Warning keymap {keymap_data[0]!r} not found!")
-        else:
-            kc.keymaps.remove(km)
+        keyconfigs = wm.keyconfigs
+        for kc in (keyconfigs.default, keyconfigs.addon):
+            km = kc.keymaps.get(keymap_data[0])
+            if km is None:
+                print("Warning keymap %r not found in %r!" % (keymap_data[0], kc.name))
+            else:
+                kc.keymaps.remove(km)
 
 
 # -----------------------------------------------------------------------------

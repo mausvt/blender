@@ -44,16 +44,20 @@ int GPU_max_ubo_size(void);
 float GPU_max_line_width(void);
 void GPU_get_dfdy_factors(float fac[2]);
 bool GPU_arb_base_instance_is_supported(void);
+bool GPU_arb_texture_cube_map_array_is_supported(void);
 bool GPU_mip_render_workaround(void);
 bool GPU_depth_blitting_workaround(void);
 bool GPU_unused_fb_slot_workaround(void);
 bool GPU_context_local_shaders_workaround(void);
+bool GPU_texture_copy_workaround(void);
 bool GPU_crappy_amd_driver(void);
 
 bool GPU_mem_stats_supported(void);
 void GPU_mem_stats_get(int *totalmem, int *freemem);
 
 void GPU_code_generate_glsl_lib(void);
+
+bool GPU_stereo_quadbuffer_support(void);
 
 #ifdef __cplusplus
 }

@@ -34,6 +34,10 @@ struct ARegion;
 struct GHOST_TabletData;
 struct ScrArea;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* wmKeyMap is in DNA_windowmanager.h, it's saveable */
 
 /** Custom types for handlers, for signaling, freeing */
@@ -45,7 +49,7 @@ enum eWM_EventHandlerType {
   WM_HANDLER_TYPE_KEYMAP,
 };
 
-typedef bool (*EventHandlerPoll)(const ARegion *ar, const wmEvent *event);
+typedef bool (*EventHandlerPoll)(const ARegion *region, const wmEvent *event);
 
 typedef struct wmEventHandler {
   struct wmEventHandler *next, *prev;
@@ -149,6 +153,11 @@ void wm_event_do_depsgraph(bContext *C, bool is_after_open_file);
 void wm_event_do_refresh_wm_and_depsgraph(bContext *C);
 void wm_event_do_notifiers(bContext *C);
 
+void wm_event_handler_ui_cancel_ex(bContext *C,
+                                   wmWindow *win,
+                                   ARegion *region,
+                                   bool reactivate_button);
+
 /* wm_event_query.c */
 float wm_pressure_curve(float raw_pressure);
 void wm_tablet_data_from_ghost(const struct GHOST_TabletData *tablet_data, wmTabletData *wmtab);
@@ -159,5 +168,9 @@ void wm_tablet_data_from_ghost(const struct GHOST_TabletData *tablet_data, wmTab
 void wm_dropbox_free(void);
 void wm_drags_check_ops(bContext *C, const wmEvent *event);
 void wm_drags_draw(bContext *C, wmWindow *win, rcti *rect);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __WM_EVENT_SYSTEM_H__ */

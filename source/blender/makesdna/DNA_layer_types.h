@@ -21,15 +21,17 @@
 #ifndef __DNA_LAYER_TYPES_H__
 #define __DNA_LAYER_TYPES_H__
 
+#include "DNA_freestyle_types.h"
+#include "DNA_listBase.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "DNA_freestyle_types.h"
-#include "DNA_listBase.h"
-
-/* Renderpasses for EEVEE.
- * ViewLayerEEVEE.render_passes */
+/**
+ * Render-passes for EEVEE.
+ * #ViewLayerEEVEE.render_passes
+ */
 typedef enum eViewLayerEEVEEPassType {
   EEVEE_RENDER_PASS_COMBINED = (1 << 0),
   EEVEE_RENDER_PASS_Z = (1 << 1),
@@ -47,6 +49,7 @@ typedef enum eViewLayerEEVEEPassType {
   EEVEE_RENDER_PASS_AO = (1 << 13),
   EEVEE_RENDER_PASS_BLOOM = (1 << 14),
 } eViewLayerEEVEEPassType;
+#define EEVEE_RENDER_PASS_MAX_BIT 15
 
 typedef struct Base {
   struct Base *next, *prev;
@@ -170,6 +173,7 @@ enum {
   LAYER_COLLECTION_HOLDOUT = (1 << 5),
   LAYER_COLLECTION_INDIRECT_ONLY = (1 << 6),
   LAYER_COLLECTION_HIDE = (1 << 7),
+  LAYER_COLLECTION_PREVIOUSLY_EXCLUDED = (1 << 8),
 };
 
 /* Layer Collection->runtime_flag

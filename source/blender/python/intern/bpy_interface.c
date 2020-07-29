@@ -30,22 +30,22 @@
 
 #include "CLG_log.h"
 
-#include "BLI_utildefines.h"
-#include "BLI_path_util.h"
 #include "BLI_fileops.h"
 #include "BLI_listbase.h"
+#include "BLI_path_util.h"
 #include "BLI_string.h"
 #include "BLI_string_utf8.h"
 #include "BLI_threads.h"
+#include "BLI_utildefines.h"
 
 #include "RNA_types.h"
 
 #include "bpy.h"
-#include "bpy_rna.h"
-#include "bpy_path.h"
 #include "bpy_capi_utils.h"
-#include "bpy_traceback.h"
 #include "bpy_intern_string.h"
+#include "bpy_path.h"
+#include "bpy_rna.h"
+#include "bpy_traceback.h"
 
 #include "bpy_app_translations.h"
 
@@ -66,12 +66,13 @@
 #include "../generic/py_capi_utils.h"
 
 /* inittab initialization functions */
+#include "../bmesh/bmesh_py_api.h"
 #include "../generic/bgl.h"
+#include "../generic/bl_math_py_api.h"
 #include "../generic/blf_py_api.h"
 #include "../generic/idprop_py_api.h"
 #include "../generic/imbuf_py_api.h"
 #include "../gpu/gpu_py_api.h"
-#include "../bmesh/bmesh_py_api.h"
 #include "../mathutils/mathutils.h"
 
 /* Logging types to use anywhere in the Python modules. */
@@ -136,7 +137,7 @@ void bpy_context_set(bContext *C, PyGILState_STATE *gilstate)
 }
 
 /* context should be used but not now because it causes some bugs */
-void bpy_context_clear(bContext *UNUSED(C), PyGILState_STATE *gilstate)
+void bpy_context_clear(bContext *UNUSED(C), const PyGILState_STATE *gilstate)
 {
   py_call_level--;
 
@@ -228,6 +229,7 @@ static struct _inittab bpy_internal_modules[] = {
     {"_bpy_path", BPyInit__bpy_path},
     {"bgl", BPyInit_bgl},
     {"blf", BPyInit_blf},
+    {"bl_math", BPyInit_bl_math},
     {"imbuf", BPyInit_imbuf},
     {"bmesh", BPyInit_bmesh},
 #if 0
@@ -256,11 +258,13 @@ void BPY_python_start(int argc, const char **argv)
   PyThreadState *py_tstate = NULL;
   const char *py_path_bundle = BKE_appdir_folder_id(BLENDER_SYSTEM_PYTHON, NULL);
 
-  /* not essential but nice to set our name */
-  static wchar_t program_path_wchar[FILE_MAX]; /* python holds a reference */
-  BLI_strncpy_wchar_from_utf8(
-      program_path_wchar, BKE_appdir_program_path(), ARRAY_SIZE(program_path_wchar));
-  Py_SetProgramName(program_path_wchar);
+  /* Not essential but nice to set our name. */
+  {
+    const char *program_path = BKE_appdir_program_path();
+    wchar_t program_path_wchar[FILE_MAX];
+    BLI_strncpy_wchar_from_utf8(program_path_wchar, program_path, ARRAY_SIZE(program_path_wchar));
+    Py_SetProgramName(program_path_wchar);
+  }
 
   /* must run before python initializes */
   PyImport_ExtendInittab(bpy_internal_modules);
@@ -268,20 +272,21 @@ void BPY_python_start(int argc, const char **argv)
   /* allow to use our own included python */
   PyC_SetHomePath(py_path_bundle);
 
-  /* without this the sys.stdout may be set to 'ascii'
+  /* Without this the `sys.stdout` may be set to 'ascii'
    * (it is on my system at least), where printing unicode values will raise
-   * an error, this is highly annoying, another stumbling block for devs,
+   * an error, this is highly annoying, another stumbling block for developers,
    * so use a more relaxed error handler and enforce utf-8 since the rest of
-   * blender is utf-8 too - campbell */
+   * Blender is utf-8 too - campbell */
   Py_SetStandardStreamEncoding("utf-8", "surrogateescape");
 
   /* Suppress error messages when calculating the module search path.
    * While harmless, it's noisy. */
   Py_FrozenFlag = 1;
 
-  /* Only use the systems environment variables when explicitly requested.
+  /* Only use the systems environment variables and site when explicitly requested.
    * Since an incorrect 'PYTHONPATH' causes difficult to debug errors, see: T72807. */
   Py_IgnoreEnvironmentFlag = !py_use_system_env;
+  Py_NoUserSiteDirectory = !py_use_system_env;
 
   Py_Initialize();
 
@@ -612,8 +617,11 @@ void BPY_DECREF_RNA_INVALIDATE(void *pyob_ptr)
 /**
  * \return success
  */
-bool BPY_execute_string_as_number(
-    bContext *C, const char *imports[], const char *expr, const bool verbose, double *r_value)
+bool BPY_execute_string_as_number(bContext *C,
+                                  const char *imports[],
+                                  const char *expr,
+                                  const char *report_prefix,
+                                  double *r_value)
 {
   PyGILState_STATE gilstate;
   bool ok = true;
@@ -632,8 +640,8 @@ bool BPY_execute_string_as_number(
   ok = PyC_RunString_AsNumber(imports, expr, "<expr as number>", r_value);
 
   if (ok == false) {
-    if (verbose) {
-      BPy_errors_to_report_ex(CTX_wm_reports(C), false, false);
+    if (report_prefix != NULL) {
+      BPy_errors_to_report_ex(CTX_wm_reports(C), report_prefix, false, false);
     }
     else {
       PyErr_Clear();
@@ -651,7 +659,7 @@ bool BPY_execute_string_as_number(
 bool BPY_execute_string_as_string_and_size(bContext *C,
                                            const char *imports[],
                                            const char *expr,
-                                           const bool verbose,
+                                           const char *report_prefix,
                                            char **r_value,
                                            size_t *r_value_size)
 {
@@ -669,8 +677,8 @@ bool BPY_execute_string_as_string_and_size(bContext *C,
   ok = PyC_RunString_AsStringAndSize(imports, expr, "<expr as str>", r_value, r_value_size);
 
   if (ok == false) {
-    if (verbose) {
-      BPy_errors_to_report_ex(CTX_wm_reports(C), false, false);
+    if (report_prefix != NULL) {
+      BPy_errors_to_report_ex(CTX_wm_reports(C), false, false, report_prefix);
     }
     else {
       PyErr_Clear();
@@ -682,12 +690,15 @@ bool BPY_execute_string_as_string_and_size(bContext *C,
   return ok;
 }
 
-bool BPY_execute_string_as_string(
-    bContext *C, const char *imports[], const char *expr, const bool verbose, char **r_value)
+bool BPY_execute_string_as_string(bContext *C,
+                                  const char *imports[],
+                                  const char *expr,
+                                  const char *report_prefix,
+                                  char **r_value)
 {
   size_t value_dummy_size;
   return BPY_execute_string_as_string_and_size(
-      C, imports, expr, verbose, r_value, &value_dummy_size);
+      C, imports, expr, report_prefix, r_value, &value_dummy_size);
 }
 
 /**
@@ -695,8 +706,11 @@ bool BPY_execute_string_as_string(
  *
  * \return success
  */
-bool BPY_execute_string_as_intptr(
-    bContext *C, const char *imports[], const char *expr, const bool verbose, intptr_t *r_value)
+bool BPY_execute_string_as_intptr(bContext *C,
+                                  const char *imports[],
+                                  const char *expr,
+                                  const char *report_prefix,
+                                  intptr_t *r_value)
 {
   BLI_assert(r_value && expr);
   PyGILState_STATE gilstate;
@@ -712,8 +726,8 @@ bool BPY_execute_string_as_intptr(
   ok = PyC_RunString_AsIntPtr(imports, expr, "<expr as intptr>", r_value);
 
   if (ok == false) {
-    if (verbose) {
-      BPy_errors_to_report_ex(CTX_wm_reports(C), false, false);
+    if (report_prefix != NULL) {
+      BPy_errors_to_report_ex(CTX_wm_reports(C), report_prefix, false, false);
     }
     else {
       PyErr_Clear();
@@ -940,7 +954,7 @@ static void bpy_module_delay_init(PyObject *bpy_proxy)
   char filename_abs[1024];
 
   BLI_strncpy(filename_abs, filename_rel, sizeof(filename_abs));
-  BLI_path_cwd(filename_abs, sizeof(filename_abs));
+  BLI_path_abs_from_cwd(filename_abs, sizeof(filename_abs));
   Py_DECREF(filename_obj);
 
   argv[0] = filename_abs;

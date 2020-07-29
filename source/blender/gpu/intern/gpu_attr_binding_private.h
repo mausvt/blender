@@ -26,14 +26,23 @@
 #ifndef __GPU_ATTR_BINDING_PRIVATE_H__
 #define __GPU_ATTR_BINDING_PRIVATE_H__
 
-#include "GPU_vertex_format.h"
 #include "GPU_shader_interface.h"
+#include "GPU_vertex_format.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* TODO(fclem) remove, use shaderface directly. */
 void AttrBinding_clear(GPUAttrBinding *binding);
 
 void get_attr_locations(const GPUVertFormat *format,
                         GPUAttrBinding *binding,
                         const GPUShaderInterface *shaderface);
 uint read_attr_location(const GPUAttrBinding *binding, uint a_idx);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __GPU_ATTR_BINDING_PRIVATE_H__ */

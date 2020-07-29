@@ -22,10 +22,10 @@
 
 #include "../BPy_Convert.h"
 #include "../BPy_Id.h"
+#include "../BPy_MediumType.h"
 #include "../Interface0D/BPy_SVertex.h"
 #include "../Interface0D/CurvePoint/BPy_StrokeVertex.h"
 #include "../Iterator/BPy_StrokeVertexIterator.h"
-#include "../BPy_MediumType.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -157,7 +157,8 @@ static PyObject *Stroke_resample(BPy_Stroke *self, PyObject *args, PyObject *kwd
       return NULL;
     }
   }
-  else if (PyErr_Clear(), PyArg_ParseTupleAndKeywords(args, kwds, "f", (char **)kwlist_2, &f)) {
+  else if ((void)PyErr_Clear(),
+           PyArg_ParseTupleAndKeywords(args, kwds, "f", (char **)kwlist_2, &f)) {
     if (self->s->Resample(f) < 0) {
       PyErr_SetString(PyExc_RuntimeError, "Stroke resampling (by vertex interval) failed");
       return NULL;

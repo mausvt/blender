@@ -15,14 +15,14 @@
  */
 
 #include "render/camera.h"
-#include "render/integrator.h"
 #include "render/graph.h"
+#include "render/integrator.h"
 #include "render/light.h"
 #include "render/mesh.h"
-#include "render/object.h"
-#include "render/scene.h"
 #include "render/nodes.h"
+#include "render/object.h"
 #include "render/particles.h"
+#include "render/scene.h"
 #include "render/shader.h"
 
 #include "blender/blender_object_cull.h"
@@ -59,7 +59,7 @@ bool BlenderSync::BKE_object_is_modified(BL::Object &b_ob)
   return false;
 }
 
-bool BlenderSync::object_is_mesh(BL::Object &b_ob)
+bool BlenderSync::object_is_geometry(BL::Object &b_ob)
 {
   BL::ID b_ob_data = b_ob.data();
 
@@ -67,10 +67,16 @@ bool BlenderSync::object_is_mesh(BL::Object &b_ob)
     return false;
   }
 
-  if (b_ob.type() == BL::Object::type_CURVE) {
+  BL::Object::type_enum type = b_ob.type();
+
+  if (type == BL::Object::type_VOLUME || type == BL::Object::type_HAIR) {
+    /* Will be exported attached to mesh. */
+    return true;
+  }
+  else if (type == BL::Object::type_CURVE) {
     /* Skip exporting curves without faces, overhead can be
      * significant if there are many for path animation. */
-    BL::Curve b_curve(b_ob.data());
+    BL::Curve b_curve(b_ob_data);
 
     return (b_curve.bevel_object() || b_curve.extrude() != 0.0f || b_curve.bevel_depth() != 0.0f ||
             b_curve.dimensions() == BL::Curve::dimensions_2D || b_ob.modifiers.length());
@@ -137,7 +143,7 @@ Object *BlenderSync::sync_object(BL::Depsgraph &b_depsgraph,
   }
 
   /* only interested in object that we can create meshes from */
-  if (!object_is_mesh(b_ob)) {
+  if (!object_is_geometry(b_ob)) {
     return NULL;
   }
 
@@ -225,6 +231,12 @@ Object *BlenderSync::sync_object(BL::Depsgraph &b_depsgraph,
   bool is_shadow_catcher = get_boolean(cobject, "is_shadow_catcher");
   if (is_shadow_catcher != object->is_shadow_catcher) {
     object->is_shadow_catcher = is_shadow_catcher;
+    object_updated = true;
+  }
+
+  float shadow_terminator_offset = get_float(cobject, "shadow_terminator_offset");
+  if (shadow_terminator_offset != object->shadow_terminator_offset) {
+    object->shadow_terminator_offset = shadow_terminator_offset;
     object_updated = true;
   }
 
@@ -450,9 +462,12 @@ void BlenderSync::sync_motion(BL::RenderSettings &b_render,
     sync_objects(b_depsgraph, b_v3d, 0.0f);
   }
 
-  /* always sample these times for camera motion */
-  motion_times.insert(-1.0f);
-  motion_times.insert(1.0f);
+  /* Insert motion times from camera. Motion times from other objects
+   * have already been added in a sync_objects call. */
+  uint camera_motion_steps = object_motion_steps(b_cam, b_cam);
+  for (size_t step = 0; step < camera_motion_steps; step++) {
+    motion_times.insert(scene->camera->motion_time(step));
+  }
 
   /* note iteration over motion_times set happens in sorted order */
   foreach (float relative_time, motion_times) {
@@ -477,10 +492,8 @@ void BlenderSync::sync_motion(BL::RenderSettings &b_render,
     b_engine.frame_set(frame, subframe);
     python_thread_state_save(python_thread_state);
 
-    /* sync camera, only supports two times at the moment */
-    if (relative_time == -1.0f || relative_time == 1.0f) {
-      sync_camera_motion(b_render, b_cam, width, height, relative_time);
-    }
+    /* Syncs camera motion if relative_time is one of the camera's motion times. */
+    sync_camera_motion(b_render, b_cam, width, height, relative_time);
 
     /* sync object */
     sync_objects(b_depsgraph, b_v3d, relative_time);

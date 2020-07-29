@@ -32,12 +32,12 @@
 #include "DNA_scene_types.h"
 #include "DNA_world_types.h"
 
-#include "BLI_math.h"
+#include "BLI_ghash.h"
 #include "BLI_listbase.h"
-#include "BLI_utildefines.h"
+#include "BLI_math.h"
 #include "BLI_string.h"
 #include "BLI_string_utils.h"
-#include "BLI_ghash.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_main.h"
 #include "BKE_material.h"
@@ -70,6 +70,7 @@ struct GPUMaterial {
 
   const void *engine_type; /* attached engine type */
   int options;             /* to identify shader variations (shadow, probe, world background...) */
+  bool is_volume_shader;   /* is volumetric shader */
 
   /* Nodes */
   GPUNodeGraph graph;
@@ -80,7 +81,8 @@ struct GPUMaterial {
   /* XXX: Should be in Material. But it depends on the output node
    * used and since the output selection is different for GPUMaterial...
    */
-  int domain;
+  bool has_volume_output;
+  bool has_surface_output;
 
   /* Only used by Eevee to know which bsdf are used. */
   int flag;
@@ -109,8 +111,8 @@ struct GPUMaterial {
 };
 
 enum {
-  GPU_DOMAIN_SURFACE = (1 << 0),
-  GPU_DOMAIN_VOLUME = (1 << 1),
+  GPU_USE_SURFACE_OUTPUT = (1 << 0),
+  GPU_USE_VOLUME_OUTPUT = (1 << 1),
 };
 
 /* Functions */
@@ -189,7 +191,7 @@ static void gpu_material_free_single(GPUMaterial *material)
 
 void GPU_material_free(ListBase *gpumaterial)
 {
-  for (LinkData *link = gpumaterial->first; link; link = link->next) {
+  LISTBASE_FOREACH (LinkData *, link, gpumaterial) {
     GPUMaterial *material = link->data;
     gpu_material_free_single(material);
     MEM_freeN(material);
@@ -207,9 +209,9 @@ GPUPass *GPU_material_get_pass(GPUMaterial *material)
   return material->pass;
 }
 
-ListBase *GPU_material_get_inputs(GPUMaterial *material)
+GPUShader *GPU_material_get_shader(GPUMaterial *material)
 {
-  return &material->graph.inputs;
+  return material->pass ? GPU_pass_shader_get(material->pass) : NULL;
 }
 
 /* Return can be NULL if it's a world material. */
@@ -495,8 +497,8 @@ static void compute_sss_translucence_kernel(const GPUSssKernelData *kd,
 
 void GPU_material_sss_profile_create(GPUMaterial *material,
                                      float radii[3],
-                                     short *falloff_type,
-                                     float *sharpness)
+                                     const short *falloff_type,
+                                     const float *sharpness)
 {
   copy_v3_v3(material->sss_radii, radii);
   material->sss_falloff = (falloff_type) ? *falloff_type : 0.0;
@@ -572,6 +574,11 @@ ListBase GPU_material_textures(GPUMaterial *material)
   return material->graph.textures;
 }
 
+ListBase GPU_material_volume_grids(GPUMaterial *material)
+{
+  return material->graph.volume_grids;
+}
+
 void GPU_material_output_link(GPUMaterial *material, GPUNodeLink *link)
 {
   if (!material->graph.outlink) {
@@ -579,9 +586,9 @@ void GPU_material_output_link(GPUMaterial *material, GPUNodeLink *link)
   }
 }
 
-void gpu_material_add_node(GPUMaterial *material, GPUNode *node)
+GPUNodeGraph *gpu_material_node_graph(GPUMaterial *material)
 {
-  BLI_addtail(&material->graph.nodes, node);
+  return &material->graph;
 }
 
 GSet *gpu_material_used_libraries(GPUMaterial *material)
@@ -597,14 +604,19 @@ eGPUMaterialStatus GPU_material_status(GPUMaterial *mat)
 
 /* Code generation */
 
-bool GPU_material_use_domain_surface(GPUMaterial *mat)
+bool GPU_material_has_surface_output(GPUMaterial *mat)
 {
-  return (mat->domain & GPU_DOMAIN_SURFACE);
+  return mat->has_surface_output;
 }
 
-bool GPU_material_use_domain_volume(GPUMaterial *mat)
+bool GPU_material_has_volume_output(GPUMaterial *mat)
 {
-  return (mat->domain & GPU_DOMAIN_VOLUME);
+  return mat->has_volume_output;
+}
+
+bool GPU_material_is_volume_shader(GPUMaterial *mat)
+{
+  return mat->is_volume_shader;
 }
 
 void GPU_material_flag_set(GPUMaterial *mat, eGPUMatFlag flag)
@@ -621,7 +633,7 @@ GPUMaterial *GPU_material_from_nodetree_find(ListBase *gpumaterials,
                                              const void *engine_type,
                                              int options)
 {
-  for (LinkData *link = gpumaterials->first; link; link = link->next) {
+  LISTBASE_FOREACH (LinkData *, link, gpumaterials) {
     GPUMaterial *current_material = (GPUMaterial *)link->data;
     if (current_material->engine_type == engine_type && current_material->options == options) {
       return current_material;
@@ -641,7 +653,8 @@ GPUMaterial *GPU_material_from_nodetree(Scene *scene,
                                         struct bNodeTree *ntree,
                                         ListBase *gpumaterials,
                                         const void *engine_type,
-                                        int options,
+                                        const int options,
+                                        const bool is_volume_shader,
                                         const char *vert_code,
                                         const char *geom_code,
                                         const char *frag_lib,
@@ -654,12 +667,16 @@ GPUMaterial *GPU_material_from_nodetree(Scene *scene,
   /* Caller must re-use materials. */
   BLI_assert(GPU_material_from_nodetree_find(gpumaterials, engine_type, options) == NULL);
 
+  /* HACK: Eevee assume this to create Ghash keys. */
+  BLI_assert(sizeof(GPUPass) > 16);
+
   /* allocate material */
   GPUMaterial *mat = MEM_callocN(sizeof(GPUMaterial), "GPUMaterial");
   mat->ma = ma;
   mat->scene = scene;
   mat->engine_type = engine_type;
   mat->options = options;
+  mat->is_volume_shader = is_volume_shader;
 #ifndef NDEBUG
   BLI_snprintf(mat->name, sizeof(mat->name), "%s", name);
 #else
@@ -675,8 +692,8 @@ GPUMaterial *GPU_material_from_nodetree(Scene *scene,
 
   gpu_material_ramp_texture_build(mat);
 
-  SET_FLAG_FROM_TEST(mat->domain, has_surface_output, GPU_DOMAIN_SURFACE);
-  SET_FLAG_FROM_TEST(mat->domain, has_volume_output, GPU_DOMAIN_VOLUME);
+  mat->has_surface_output = has_surface_output;
+  mat->has_volume_output = has_volume_output;
 
   if (mat->graph.outlink) {
     /* HACK: this is only for eevee. We add the define here after the nodetree evaluation. */

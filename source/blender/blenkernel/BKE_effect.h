@@ -27,6 +27,10 @@
 
 #include "BLI_utildefines.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct Collection;
 struct Depsgraph;
 struct ListBase;
@@ -126,6 +130,7 @@ void BKE_effectors_apply(struct ListBase *effectors,
                          struct EffectorWeights *weights,
                          struct EffectedPoint *point,
                          float *force,
+                         float *wind_force,
                          float *impulse);
 void BKE_effectors_free(struct ListBase *lb);
 
@@ -274,5 +279,9 @@ void BKE_sim_debug_data_remove_element(unsigned int hash);
 
 void BKE_sim_debug_data_clear(void);
 void BKE_sim_debug_data_clear_category(const char *category);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

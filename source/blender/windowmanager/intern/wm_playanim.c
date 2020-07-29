@@ -27,16 +27,16 @@
  * this could be made into its own module, alongside creator.
  */
 
-#include <sys/types.h>
 #include <fcntl.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
+#include <sys/types.h>
 
 #ifndef WIN32
-#  include <unistd.h>
 #  include <sys/times.h>
 #  include <sys/wait.h>
+#  include <unistd.h>
 #else
 #  include <io.h>
 #endif
@@ -44,30 +44,31 @@
 
 #include "PIL_time.h"
 
-#include "BLI_utildefines.h"
 #include "BLI_fileops.h"
 #include "BLI_listbase.h"
 #include "BLI_path_util.h"
 #include "BLI_string.h"
+#include "BLI_utildefines.h"
 
-#include "IMB_imbuf_types.h"
 #include "IMB_imbuf.h"
+#include "IMB_imbuf_types.h"
 
 #include "BKE_image.h"
 
 #include "BIF_glutil.h"
 
 #include "GPU_context.h"
-#include "GPU_matrix.h"
+#include "GPU_framebuffer.h"
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_init_exit.h"
+#include "GPU_matrix.h"
 #include "GPU_state.h"
 
+#include "BLF_api.h"
 #include "DNA_scene_types.h"
 #include "ED_datafiles.h" /* for fonts */
 #include "GHOST_C-api.h"
-#include "BLF_api.h"
 
 #include "DEG_depsgraph.h"
 
@@ -309,15 +310,22 @@ static void playanim_toscreen(
   CLAMP(offs_x, 0.0f, 1.0f);
   CLAMP(offs_y, 0.0f, 1.0f);
 
-  glClearColor(0.1, 0.1, 0.1, 0.0);
-  glClear(GL_COLOR_BUFFER_BIT);
+  GPU_clear_color(0.1, 0.1, 0.1, 0.0);
+  GPU_clear(GPU_COLOR_BIT);
 
   /* checkerboard for case alpha */
   if (ibuf->planes == 32) {
     GPU_blend(true);
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    GPU_blend_set_func_separate(
+        GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
-    imm_draw_box_checker_2d(offs_x, offs_y, offs_x + span_x, offs_y + span_y);
+    imm_draw_box_checker_2d_ex(offs_x,
+                               offs_y,
+                               offs_x + span_x,
+                               offs_y + span_y,
+                               (const float[4]){0.15, 0.15, 0.15, 1.0},
+                               (const float[4]){0.20, 0.20, 0.20, 1.0},
+                               8);
   }
 
   IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_COLOR);
@@ -327,9 +335,8 @@ static void playanim_toscreen(
                    offs_y + (ps->draw_flip[1] ? span_y : 0.0f),
                    ibuf->x,
                    ibuf->y,
-                   GL_RGBA,
-                   GL_UNSIGNED_BYTE,
-                   GL_NEAREST,
+                   GPU_RGBA8,
+                   false,
                    ibuf->rect,
                    ((ps->draw_flip[0] ? -1.0f : 1.0f)) * (ps->zoom / (float)ps->win_x),
                    ((ps->draw_flip[1] ? -1.0f : 1.0f)) * (ps->zoom / (float)ps->win_y),
@@ -429,7 +436,8 @@ static void build_pict_list_ex(
     } fp_decoded;
 
     BLI_strncpy(filepath, first, sizeof(filepath));
-    fp_framenr = BLI_stringdec(filepath, fp_decoded.head, fp_decoded.tail, &fp_decoded.digits);
+    fp_framenr = BLI_path_sequence_decode(
+        filepath, fp_decoded.head, fp_decoded.tail, &fp_decoded.digits);
 
     pupdate_time();
     ptottime = 1.0;
@@ -522,12 +530,11 @@ static void build_pict_list_ex(
 
       /* create a new filepath each time */
       fp_framenr += fstep;
-      BLI_stringenc(filepath, fp_decoded.head, fp_decoded.tail, fp_decoded.digits, fp_framenr);
+      BLI_path_sequence_encode(
+          filepath, fp_decoded.head, fp_decoded.tail, fp_decoded.digits, fp_framenr);
 
       while ((hasevent = GHOST_ProcessEvents(g_WS.ghost_system, 0))) {
-        if (hasevent) {
-          GHOST_DispatchEvents(g_WS.ghost_system);
-        }
+        GHOST_DispatchEvents(g_WS.ghost_system);
         if (ps->loading == false) {
           return;
         }
@@ -536,7 +543,6 @@ static void build_pict_list_ex(
       totframes--;
     }
   }
-  return;
 }
 
 static void build_pict_list(PlayState *ps, const char *first, int totframes, int fstep, int fontid)
@@ -1053,8 +1059,8 @@ static int ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr ps_void)
       /* zoom always show entire image */
       ps->zoom = MIN2(zoomx, zoomy);
 
-      glViewport(0, 0, ps->win_x, ps->win_y);
-      glScissor(0, 0, ps->win_x, ps->win_y);
+      GPU_viewport(0, 0, ps->win_x, ps->win_y);
+      GPU_scissor(0, 0, ps->win_x, ps->win_y);
 
       playanim_gl_matrix();
 
@@ -1294,8 +1300,7 @@ static char *wm_main_playanim_intern(int argc, const char **argv)
 
   /* initialize the font */
   BLF_init();
-  ps.fontid = BLF_load_mem(
-      "monospace", (unsigned char *)datatoc_bmonofont_ttf, datatoc_bmonofont_ttf_size);
+  ps.fontid = BLF_load_mono_default(false);
   BLF_size(ps.fontid, 11, 72);
 
   ps.ibufx = ibuf->x;
@@ -1311,13 +1316,13 @@ static char *wm_main_playanim_intern(int argc, const char **argv)
     maxwiny = ibuf->y * (1 + (maxwiny / ibuf->y));
   }
 
-  glClearColor(0.1, 0.1, 0.1, 0.0);
-  glClear(GL_COLOR_BUFFER_BIT);
+  GPU_clear_color(0.1, 0.1, 0.1, 0.0);
+  GPU_clear(GPU_COLOR_BIT);
 
   int win_x, win_y;
   playanim_window_get_size(&win_x, &win_y);
-  glViewport(0, 0, win_x, win_y);
-  glScissor(0, 0, win_x, win_y);
+  GPU_viewport(0, 0, win_x, win_y);
+  GPU_scissor(0, 0, win_x, win_y);
   playanim_gl_matrix();
 
   GHOST_SwapWindowBuffers(g_WS.ghost_window);

@@ -47,6 +47,7 @@ set(DEFSRC
   rna_fluid.c
   rna_gpencil.c
   rna_gpencil_modifier.c
+  rna_hair.c
   rna_image.c
   rna_key.c
   rna_lattice.c
@@ -68,6 +69,7 @@ set(DEFSRC
   rna_packedfile.c
   rna_palette.c
   rna_particle.c
+  rna_pointcloud.c
   rna_pose.c
   rna_render.c
   rna_rigidbody.c
@@ -77,6 +79,7 @@ set(DEFSRC
   rna_sculpt_paint.c
   rna_sequencer.c
   rna_shader_fx.c
+  rna_simulation.c
   rna_sound.c
   rna_space.c
   rna_speaker.c
@@ -88,10 +91,12 @@ set(DEFSRC
   rna_ui.c
   rna_userdef.c
   rna_vfont.c
+  rna_volume.c
   rna_wm.c
   rna_wm_gizmo.c
   rna_workspace.c
   rna_world.c
+  rna_xr.c
 )
 
 set(APISRC
@@ -146,6 +151,16 @@ endif()
 unset(GENSRC_CFLAGS)
 
 
+# NOTE: Disable clang-tidy because generated files are stored outside of the source,
+# so the clang-tidy can not find our .clang-tidy and fall-backs to own set of rules
+# which are too noisy for Blender.
+#
+# In the future clang-tidy would either need to be inlined checks and passed via the
+# command line (instead of using .clang-tidy file). Or, maybe, there is a way to
+# pass configuration file to the clang-tidy command.
+unset(CMAKE_C_CLANG_TIDY)
+unset(CMAKE_CXX_CLANG_TIDY)
+
 set(SRC_RNA_INC
   ../RNA_access.h
   ../RNA_define.h
@@ -160,6 +175,7 @@ set(SRC
   ${DEFSRC}
   ${APISRC}
   ../../../../intern/clog/clog.c
+  ../../../../intern/guardedalloc/intern/leak_detector.cc
   ../../../../intern/guardedalloc/intern/mallocn.c
   ../../../../intern/guardedalloc/intern/mallocn_guarded_impl.c
   ../../../../intern/guardedalloc/intern/mallocn_lockfree_impl.c
@@ -287,7 +303,7 @@ endif()
 
 if(WITH_ALEMBIC)
   list(APPEND INC
-    ../../alembic
+    ../../io/alembic
   )
   add_definitions(-DWITH_ALEMBIC)
 endif()
@@ -325,6 +341,10 @@ if(WITH_INPUT_NDOF)
   add_definitions(-DWITH_INPUT_NDOF)
 endif()
 
+if(WITH_XR_OPENXR)
+  add_definitions(-DWITH_XR_OPENXR)
+endif()
+
 # Build makesrna executable
 blender_include_dirs(
   .
@@ -341,7 +361,7 @@ blender_include_dirs(
   ../../imbuf
   ../../makesdna
   ../../nodes/
-  ../../physics
+  ../../simulation
   ../../windowmanager
   ../../editors/include
   ../../render/extern/include
@@ -364,6 +384,10 @@ add_executable(makesrna ${SRC} ${SRC_RNA_INC} ${SRC_DNA_INC})
 
 target_link_libraries(makesrna bf_dna)
 target_link_libraries(makesrna bf_dna_blenlib)
+
+if(WIN32 AND NOT UNIX)
+  target_link_libraries(makesrna ${PTHREADS_LIBRARIES})
+endif()
 
 # Output rna_*_gen.c
 # note (linux only): with crashes try add this after COMMAND: valgrind --leak-check=full --track-origins=yes
@@ -410,3 +434,6 @@ set(LIB
 add_definitions(${GL_DEFINITIONS})
 
 blender_add_lib(bf_rna "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")
+
+# Needed so we can use dna_type_offsets.h for defaults initialization.
+add_dependencies(bf_blenkernel bf_dna)

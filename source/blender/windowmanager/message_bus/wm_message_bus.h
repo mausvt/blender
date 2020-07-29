@@ -21,6 +21,7 @@
 #ifndef __WM_MESSAGE_BUS_H__
 #define __WM_MESSAGE_BUS_H__
 
+#include "RNA_types.h"
 #include <stdio.h>
 
 struct ID;
@@ -32,6 +33,10 @@ struct wmMsgBus;
 struct wmMsgSubscribeKey;
 struct wmMsgSubscribeValue;
 struct wmMsgSubscribeValueLink;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef void (*wmMsgNotifyFn)(struct bContext *C,
                               struct wmMsgSubscribeKey *msg_key,
@@ -285,5 +290,9 @@ void WM_msg_publish_ID(struct wmMsgBus *mbus, struct ID *id);
                                 __func__); \
   } \
   ((void)0)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __WM_MESSAGE_BUS_H__ */

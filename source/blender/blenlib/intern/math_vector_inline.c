@@ -123,6 +123,27 @@ MINLINE void copy_v4_v4_uchar(unsigned char r[4], const unsigned char a[4])
   r[3] = a[3];
 }
 
+MINLINE void copy_v2_uchar(unsigned char r[2], const unsigned char a)
+{
+  r[0] = a;
+  r[1] = a;
+}
+
+MINLINE void copy_v3_uchar(unsigned char r[3], const unsigned char a)
+{
+  r[0] = a;
+  r[1] = a;
+  r[2] = a;
+}
+
+MINLINE void copy_v4_uchar(unsigned char r[4], const unsigned char a)
+{
+  r[0] = a;
+  r[1] = a;
+  r[2] = a;
+  r[3] = a;
+}
+
 /* char */
 MINLINE void copy_v2_v2_char(char r[2], const char a[2])
 {
@@ -486,6 +507,12 @@ MINLINE void sub_v3_v3v3_db(double r[3], const double a[3], const double b[3])
   r[0] = a[0] - b[0];
   r[1] = a[1] - b[1];
   r[2] = a[2] - b[2];
+}
+
+MINLINE void sub_v2db_v2fl_v2fl(double r[2], const float a[2], const float b[2])
+{
+  r[0] = (double)a[0] - (double)b[0];
+  r[1] = (double)a[1] - (double)b[1];
 }
 
 MINLINE void sub_v3db_v3fl_v3fl(double r[3], const float a[3], const float b[3])
@@ -896,6 +923,11 @@ MINLINE float cross_v2v2(const float a[2], const float b[2])
   return a[0] * b[1] - a[1] * b[0];
 }
 
+MINLINE double cross_v2v2_db(const double a[2], const double b[2])
+{
+  return a[0] * b[1] - a[1] * b[0];
+}
+
 MINLINE void cross_v3_v3v3(float r[3], const float a[3], const float b[3])
 {
   BLI_assert(r != a && r != b);
@@ -974,6 +1006,11 @@ MINLINE float len_manhattan_v3(const float v[3])
 MINLINE float len_v2(const float v[2])
 {
   return sqrtf(v[0] * v[0] + v[1] * v[1]);
+}
+
+MINLINE double len_v2_db(const double v[2])
+{
+  return sqrt(v[0] * v[0] + v[1] * v[1]);
 }
 
 MINLINE float len_v2v2(const float v1[2], const float v2[2])
@@ -1290,6 +1327,53 @@ MINLINE bool compare_len_v3v3(const float v1[3], const float v2[3], const float 
   sub_v3_v3v3(d, v1, v2);
   return (dot_v3v3(d, d) <= (limit * limit));
 }
+
+/** \name Vector Clamping
+ * \{ */
+
+MINLINE void clamp_v2(float vec[2], const float min, const float max)
+{
+  CLAMP(vec[0], min, max);
+  CLAMP(vec[1], min, max);
+}
+
+MINLINE void clamp_v3(float vec[3], const float min, const float max)
+{
+  CLAMP(vec[0], min, max);
+  CLAMP(vec[1], min, max);
+  CLAMP(vec[2], min, max);
+}
+
+MINLINE void clamp_v4(float vec[4], const float min, const float max)
+{
+  CLAMP(vec[0], min, max);
+  CLAMP(vec[1], min, max);
+  CLAMP(vec[2], min, max);
+  CLAMP(vec[3], min, max);
+}
+
+MINLINE void clamp_v2_v2v2(float vec[2], const float min[2], const float max[2])
+{
+  CLAMP(vec[0], min[0], max[0]);
+  CLAMP(vec[1], min[1], max[1]);
+}
+
+MINLINE void clamp_v3_v3v3(float vec[3], const float min[3], const float max[3])
+{
+  CLAMP(vec[0], min[0], max[0]);
+  CLAMP(vec[1], min[1], max[1]);
+  CLAMP(vec[2], min[2], max[2]);
+}
+
+MINLINE void clamp_v4_v4v4(float vec[4], const float min[4], const float max[4])
+{
+  CLAMP(vec[0], min[0], max[0]);
+  CLAMP(vec[1], min[1], max[1]);
+  CLAMP(vec[2], min[2], max[2]);
+  CLAMP(vec[3], min[3], max[3]);
+}
+
+/** \} */
 
 /**
  * <pre>

@@ -22,8 +22,8 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_math.h"
 #include "BLI_heap.h"
+#include "BLI_math.h"
 
 #include "BKE_customdata.h"
 
@@ -278,9 +278,7 @@ static bool bm_vert_collapse_is_degenerate(BMVert *v)
     }
     return false;
   }
-  else {
-    return true;
-  }
+  return true;
 }
 #endif /* USE_DEGENERATE_CHECK */
 

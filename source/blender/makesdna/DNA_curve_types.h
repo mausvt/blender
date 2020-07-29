@@ -24,10 +24,10 @@
 #ifndef __DNA_CURVE_TYPES_H__
 #define __DNA_CURVE_TYPES_H__
 
+#include "DNA_ID.h"
 #include "DNA_defs.h"
 #include "DNA_listBase.h"
 #include "DNA_vec_types.h"
-#include "DNA_ID.h"
 
 #define MAXTEXTBOX 256 /* used in readfile.c and editfont.c */
 
@@ -274,9 +274,12 @@ typedef struct Curve {
   int selstart, selend;
 
   /* text data */
-  /** Number of characters (strinfo). */
-  int len_wchar;
-  /** Number of bytes (str - utf8). */
+  /**
+   * Number of characters (unicode code-points)
+   * This is the length of #Curve.strinfo and the result of `BLI_strlen_utf8(cu->str)`.
+   */
+  int len_char32;
+  /** Number of bytes: `strlen(Curve.str)`. */
   int len;
   char *str;
   struct EditFont *editfont;
@@ -496,11 +499,11 @@ typedef enum eBezTriple_KeyframeType {
 #define BEZT_ISSEL_ALL(bezt) \
   (((bezt)->f2 & SELECT) && ((bezt)->f1 & SELECT) && ((bezt)->f3 & SELECT))
 #define BEZT_ISSEL_ALL_HIDDENHANDLES(v3d, bezt) \
-  ((((v3d) != NULL) && ((v3d)->overlay.edit_flag & V3D_OVERLAY_EDIT_CU_HANDLES) == 0) ? \
+  ((((v3d) != NULL) && ((v3d)->overlay.handle_display == CURVE_HANDLE_NONE)) ? \
        (bezt)->f2 & SELECT : \
        BEZT_ISSEL_ALL(bezt))
 #define BEZT_ISSEL_ANY_HIDDENHANDLES(v3d, bezt) \
-  ((((v3d) != NULL) && ((v3d)->overlay.edit_flag & V3D_OVERLAY_EDIT_CU_HANDLES) == 0) ? \
+  ((((v3d) != NULL) && ((v3d)->overlay.handle_display == CURVE_HANDLE_NONE)) ? \
        (bezt)->f2 & SELECT : \
        BEZT_ISSEL_ANY(bezt))
 

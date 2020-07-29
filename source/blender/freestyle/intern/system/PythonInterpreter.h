@@ -28,13 +28,12 @@ extern "C" {
 #include <Python.h>
 }
 
-#include "StringUtils.h"
 #include "Interpreter.h"
+#include "StringUtils.h"
 
 #include "MEM_guardedalloc.h"
 
 // soc
-extern "C" {
 #include "DNA_text_types.h"
 
 #include "BKE_context.h"
@@ -47,7 +46,6 @@ extern "C" {
 #include "BPY_extern.h"
 
 #include "bpy_capi_utils.h"
-}
 
 namespace Freestyle {
 

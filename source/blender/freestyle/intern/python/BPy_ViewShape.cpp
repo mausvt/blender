@@ -21,9 +21,9 @@
 #include "BPy_ViewShape.h"
 
 #include "BPy_Convert.h"
+#include "BPy_SShape.h"
 #include "Interface0D/BPy_ViewVertex.h"
 #include "Interface1D/BPy_ViewEdge.h"
-#include "BPy_SShape.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -88,7 +88,7 @@ static int ViewShape_init(BPy_ViewShape *self, PyObject *args, PyObject *kwds)
       self->py_ss = ((BPy_ViewShape *)obj)->py_ss;
     }
   }
-  else if (PyErr_Clear(),
+  else if ((void)PyErr_Clear(),
            PyArg_ParseTupleAndKeywords(args, kwds, "O!", (char **)kwlist_2, &SShape_Type, &obj)) {
     BPy_SShape *py_ss = (BPy_SShape *)obj;
     self->vs = new ViewShape(py_ss->ss);

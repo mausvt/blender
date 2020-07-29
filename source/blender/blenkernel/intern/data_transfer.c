@@ -27,13 +27,13 @@
 #include "MEM_guardedalloc.h"
 
 #include "DNA_customdata_types.h"
-#include "DNA_meshdata_types.h"
 #include "DNA_mesh_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
-#include "BLI_math.h"
 #include "BLI_blenlib.h"
+#include "BLI_math.h"
 #include "BLI_utildefines.h"
 
 #include "BKE_customdata.h"
@@ -41,8 +41,8 @@
 #include "BKE_deform.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_mapping.h"
-#include "BKE_mesh_runtime.h"
 #include "BKE_mesh_remap.h"
+#include "BKE_mesh_runtime.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
 #include "BKE_object_deform.h"
@@ -562,7 +562,7 @@ static bool data_transfer_layersmapping_cdlayers_multisrc_to_dst(ListBase *r_map
                                                                  CustomData *cd_dst,
                                                                  const bool use_dupref_dst,
                                                                  const int tolayers,
-                                                                 bool *use_layers_src,
+                                                                 const bool *use_layers_src,
                                                                  const int num_layers_src,
                                                                  cd_datatransfer_interp interp,
                                                                  void *interp_data)
@@ -1444,7 +1444,7 @@ bool BKE_object_data_transfer_ex(struct Depsgraph *depsgraph,
   if (vgroup_name) {
     mdef = CustomData_get_layer(&me_dst->vdata, CD_MDEFORMVERT);
     if (mdef) {
-      vg_idx = defgroup_name_index(ob_dst, vgroup_name);
+      vg_idx = BKE_object_defgroup_name_index(ob_dst, vgroup_name);
     }
   }
 

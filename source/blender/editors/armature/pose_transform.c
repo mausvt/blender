@@ -207,12 +207,12 @@ typedef struct ApplyArmature_ParentState {
 } ApplyArmature_ParentState;
 
 /* Recursive walk for Apply To Selected mode; pstate NULL unless child of an applied bone. */
-static void applyarmature_process_selected_rec(bArmature *arm,
-                                               bPose *pose,
-                                               bPose *pose_eval,
-                                               Bone *bone,
-                                               ListBase *selected,
-                                               ApplyArmature_ParentState *pstate)
+static void applyarmature_process_selected_recursive(bArmature *arm,
+                                                     bPose *pose,
+                                                     bPose *pose_eval,
+                                                     Bone *bone,
+                                                     ListBase *selected,
+                                                     ApplyArmature_ParentState *pstate)
 {
   bPoseChannel *pchan = BKE_pose_channel_find_name(pose, bone->name);
   const bPoseChannel *pchan_eval = BKE_pose_channel_find_name(pose_eval, bone->name);
@@ -333,8 +333,8 @@ static void applyarmature_process_selected_rec(bArmature *arm,
     pstate = &new_pstate;
   }
 
-  for (Bone *child = bone->childbase.first; child; child = child->next) {
-    applyarmature_process_selected_rec(arm, pose, pose_eval, child, selected, pstate);
+  LISTBASE_FOREACH (Bone *, child, &bone->childbase) {
+    applyarmature_process_selected_recursive(arm, pose, pose_eval, child, selected, pstate);
   }
 }
 
@@ -389,8 +389,9 @@ static int apply_armature_pose2bones_exec(bContext *C, wmOperator *op)
 
   if (use_selected) {
     /* The selected only mode requires a recursive walk to handle parent-child relations. */
-    for (Bone *bone = arm->bonebase.first; bone; bone = bone->next) {
-      applyarmature_process_selected_rec(arm, pose, ob_eval->pose, bone, &selected_bones, NULL);
+    LISTBASE_FOREACH (Bone *, bone, &arm->bonebase) {
+      applyarmature_process_selected_recursive(
+          arm, pose, ob_eval->pose, bone, &selected_bones, NULL);
     }
 
     BLI_freelistN(&selected_bones);
@@ -710,6 +711,8 @@ static int pose_copy_exec(bContext *C, wmOperator *op)
    * any datablock expansion?
    */
   Main *temp_bmain = BKE_main_new();
+  STRNCPY(temp_bmain->name, BKE_main_blendfile_path_from_global());
+
   Object ob_copy = *ob;
   ob_copy.adt = NULL;
   bArmature arm_copy = *((bArmature *)ob->data);
@@ -723,7 +726,7 @@ static int pose_copy_exec(bContext *C, wmOperator *op)
    * existing on it's own.
    */
   BKE_copybuffer_tag_ID(&ob_copy.id);
-  BLI_make_file_string("/", str, BKE_tempdir_base(), "copybuffer_pose.blend");
+  BLI_join_dirfile(str, sizeof(str), BKE_tempdir_base(), "copybuffer_pose.blend");
   BKE_copybuffer_save(temp_bmain, str, op->reports);
   /* We clear the lists so no datablocks gets freed,
    * This is required because objects in temp bmain shares same pointers
@@ -773,7 +776,9 @@ static int pose_paste_exec(bContext *C, wmOperator *op)
   /* Read copy buffer .blend file. */
   char str[FILE_MAX];
   Main *tmp_bmain = BKE_main_new();
-  BLI_make_file_string("/", str, BKE_tempdir_base(), "copybuffer_pose.blend");
+  STRNCPY(tmp_bmain->name, BKE_main_blendfile_path_from_global());
+
+  BLI_join_dirfile(str, sizeof(str), BKE_tempdir_base(), "copybuffer_pose.blend");
   if (!BKE_copybuffer_read(tmp_bmain, str, op->reports, FILTER_ID_OB)) {
     BKE_report(op->reports, RPT_ERROR, "Copy buffer is empty");
     BKE_main_free(tmp_bmain);
@@ -1214,7 +1219,9 @@ static int pose_clear_user_transforms_exec(bContext *C, wmOperator *op)
   ViewLayer *view_layer = CTX_data_view_layer(C);
   View3D *v3d = CTX_wm_view3d(C);
   Scene *scene = CTX_data_scene(C);
-  float cframe = (float)CFRA;
+  Depsgraph *depsgraph = CTX_data_depsgraph_pointer(C);
+  const AnimationEvalContext anim_eval_context = BKE_animsys_eval_context_construct(depsgraph,
+                                                                                    (float)CFRA);
   const bool only_select = RNA_boolean_get(op->ptr, "only_selected");
 
   FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, v3d, OB_ARMATURE, OB_MODE_POSE, ob) {
@@ -1235,7 +1242,8 @@ static int pose_clear_user_transforms_exec(bContext *C, wmOperator *op)
       workob.adt = ob->adt;
       workob.pose = dummyPose;
 
-      BKE_animsys_evaluate_animdata(scene, &workob.id, workob.adt, cframe, ADT_RECALC_ANIM, false);
+      BKE_animsys_evaluate_animdata(
+          &workob.id, workob.adt, &anim_eval_context, ADT_RECALC_ANIM, false);
 
       /* copy back values, but on selected bones only  */
       for (pchan = dummyPose->chanbase.first; pchan; pchan = pchan->next) {
@@ -1254,10 +1262,8 @@ static int pose_clear_user_transforms_exec(bContext *C, wmOperator *op)
       MEM_freeN(dummyPose);
     }
     else {
-      /* no animation, so just reset whole pose to rest pose
-       * (cannot just restore for selected though)
-       */
-      BKE_pose_rest(ob->pose);
+      /* No animation, so just reset to the rest pose. */
+      BKE_pose_rest(ob->pose, only_select);
     }
 
     /* notifiers and updates */
@@ -1274,7 +1280,7 @@ void POSE_OT_user_transforms_clear(wmOperatorType *ot)
   /* identifiers */
   ot->name = "Clear User Transforms";
   ot->idname = "POSE_OT_user_transforms_clear";
-  ot->description = "Reset pose on selected bones to keyframed state";
+  ot->description = "Reset pose bone transforms to keyframed state";
 
   /* callbacks */
   ot->exec = pose_clear_user_transforms_exec;

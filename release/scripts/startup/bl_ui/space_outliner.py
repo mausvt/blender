@@ -104,20 +104,30 @@ class OUTLINER_MT_editor_menus(Menu):
             layout.menu("OUTLINER_MT_edit_datablocks")
 
 
-class OUTLINER_MT_context(Menu):
-    bl_label = "Outliner"
+class OUTLINER_MT_context_menu(Menu):
+    bl_label = "Outliner Context Menu"
 
-    def draw(self, _context):
-        layout = self.layout
-
-        layout.menu("OUTLINER_MT_context_view")
+    @staticmethod
+    def draw_common_operators(layout):
+        layout.menu("OUTLINER_MT_context_menu_view")
 
         layout.separator()
 
         layout.menu("INFO_MT_area")
 
+    def draw(self, context):
+        space = context.space_data
 
-class OUTLINER_MT_context_view(Menu):
+        layout = self.layout
+
+        if space.display_mode == 'VIEW_LAYER':
+            OUTLINER_MT_collection_new.draw_without_context_menu(context, layout)
+            layout.separator()
+
+        OUTLINER_MT_context_menu.draw_common_operators(layout)
+
+
+class OUTLINER_MT_context_menu_view(Menu):
     bl_label = "View"
 
     def draw(self, _context):
@@ -206,8 +216,8 @@ class OUTLINER_MT_collection(Menu):
 
         layout.separator()
 
-        layout.operator("outliner.collection_delete", text="Delete", icon='X').hierarchy = False
-        layout.operator("outliner.collection_delete", text="Delete Hierarchy").hierarchy = True
+        layout.operator("outliner.delete", text="Delete", icon='X')
+        layout.operator("outliner.delete", text="Delete Hierarchy").hierarchy = True
 
         layout.separator()
 
@@ -236,21 +246,25 @@ class OUTLINER_MT_collection(Menu):
 
         layout.separator()
 
-        OUTLINER_MT_context.draw(self, context)
+        OUTLINER_MT_context_menu.draw_common_operators(layout)
 
 
 class OUTLINER_MT_collection_new(Menu):
     bl_label = "Collection"
 
+    @staticmethod
+    def draw_without_context_menu(context, layout):
+        layout.operator("outliner.collection_new", text="New Collection").nested = True
+        layout.operator("outliner.id_paste", text="Paste Data-Blocks", icon='PASTEDOWN')
+
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("outliner.collection_new", text="New").nested = False
-        layout.operator("outliner.id_paste", text="Paste", icon='PASTEDOWN')
+        self.draw_without_context_menu(context, layout)
 
         layout.separator()
 
-        OUTLINER_MT_context.draw(self, context)
+        OUTLINER_MT_context_menu.draw_common_operators(layout)
 
 
 class OUTLINER_MT_object(Menu):
@@ -268,10 +282,8 @@ class OUTLINER_MT_object(Menu):
 
         layout.separator()
 
-        layout.operator("outliner.object_operation", text="Delete", icon='X').type = 'DELETE'
-
-        if space.display_mode == 'VIEW_LAYER' and not space.use_filter_collection:
-            layout.operator("outliner.object_operation", text="Delete Hierarchy").type = 'DELETE_HIERARCHY'
+        layout.operator("outliner.delete", text="Delete", icon='X')
+        layout.operator("outliner.delete", text="Delete Hierarchy").hierarchy = True
 
         layout.separator()
 
@@ -295,11 +307,15 @@ class OUTLINER_MT_object(Menu):
             layout.operator("outliner.id_operation", text="Unlink").type = 'UNLINK'
             layout.separator()
 
+        layout.operator("outliner.collection_new", text="New Collection").nested = True
+
+        layout.separator()
+
         layout.operator_menu_enum("outliner.id_operation", "type", text="ID Data")
 
         layout.separator()
 
-        OUTLINER_MT_context.draw(self, context)
+        OUTLINER_MT_context_menu.draw_common_operators(layout)
 
 
 class OUTLINER_PT_filter(Panel):
@@ -397,6 +413,9 @@ class OUTLINER_PT_filter(Panel):
         if (
                 bpy.data.curves or
                 bpy.data.metaballs or
+                (hasattr(bpy.data, "hairs") and bpy.data.hairs) or
+                (hasattr(bpy.data, "pointclouds") and bpy.data.pointclouds) or
+                bpy.data.volumes or
                 bpy.data.lightprobes or
                 bpy.data.lattices or
                 bpy.data.fonts or
@@ -416,8 +435,8 @@ classes = (
     OUTLINER_MT_collection_visibility,
     OUTLINER_MT_collection_view_layer,
     OUTLINER_MT_object,
-    OUTLINER_MT_context,
-    OUTLINER_MT_context_view,
+    OUTLINER_MT_context_menu,
+    OUTLINER_MT_context_menu_view,
     OUTLINER_PT_filter,
 )
 

@@ -25,10 +25,10 @@
 #define __DNA_NODE_TYPES_H__
 
 #include "DNA_ID.h"
-#include "DNA_vec_types.h"
 #include "DNA_listBase.h"
-#include "DNA_texture_types.h"
 #include "DNA_scene_types.h"
+#include "DNA_texture_types.h"
+#include "DNA_vec_types.h"
 
 struct AnimData;
 struct ID;
@@ -94,7 +94,8 @@ typedef struct bNodeSocket {
   void *storage;
 
   short type, flag;
-  /** Max. number of links. */
+  /** Max. number of links. Read via nodeSocketLinkLimit, because the limit might be defined on the
+   * socket type. */
   short limit;
   /** Input/output type. */
   short in_out;
@@ -153,6 +154,12 @@ typedef enum eNodeSocketDatatype {
   __SOCK_MESH = 5, /* deprecated */
   SOCK_INT = 6,
   SOCK_STRING = 7,
+  SOCK_OBJECT = 8,
+  SOCK_IMAGE = 9,
+  SOCK_EMITTERS = 10,
+  SOCK_EVENTS = 11,
+  SOCK_FORCES = 12,
+  SOCK_CONTROL_FLOW = 13,
 } eNodeSocketDatatype;
 
 /* socket shape */
@@ -497,6 +504,7 @@ typedef struct bNodeTree {
 #define NTREE_SHADER 0
 #define NTREE_COMPOSIT 1
 #define NTREE_TEXTURE 2
+#define NTREE_SIMULATION 3
 
 /* ntree->init, flag */
 #define NTREE_TYPE_INIT 1
@@ -563,6 +571,14 @@ typedef struct bNodeSocketValueString {
   /** 1024 = FILEMAX. */
   char value[1024];
 } bNodeSocketValueString;
+
+typedef struct bNodeSocketValueObject {
+  struct Object *value;
+} bNodeSocketValueObject;
+
+typedef struct bNodeSocketValueImage {
+  struct Image *value;
+} bNodeSocketValueImage;
 
 /* data structs, for node->storage */
 enum {
@@ -828,6 +844,16 @@ typedef struct NodeTexSky {
   float sun_direction[3];
   float turbidity;
   float ground_albedo;
+  float sun_size;
+  float sun_intensity;
+  float sun_elevation;
+  float sun_rotation;
+  float altitude;
+  float air_density;
+  float dust_density;
+  float ozone_density;
+  char sun_disc;
+  char _pad[7];
 } NodeTexSky;
 
 typedef struct NodeTexImage {
@@ -1155,8 +1181,9 @@ enum {
 };
 
 /* sky texture */
-#define SHD_SKY_OLD 0
-#define SHD_SKY_NEW 1
+#define SHD_SKY_PREETHAM 0
+#define SHD_SKY_HOSEK 1
+#define SHD_SKY_NISHITA 2
 
 /* environment texture */
 #define SHD_PROJ_EQUIRECTANGULAR 0
@@ -1212,11 +1239,6 @@ enum {
   NODE_VECTOR_ROTATE_TYPE_AXIS_Y = 2,
   NODE_VECTOR_ROTATE_TYPE_AXIS_Z = 3,
   NODE_VECTOR_ROTATE_TYPE_EULER_XYZ = 4,
-  NODE_VECTOR_ROTATE_TYPE_EULER_XZY = 5,
-  NODE_VECTOR_ROTATE_TYPE_EULER_YXZ = 6,
-  NODE_VECTOR_ROTATE_TYPE_EULER_YZX = 7,
-  NODE_VECTOR_ROTATE_TYPE_EULER_ZXY = 8,
-  NODE_VECTOR_ROTATE_TYPE_EULER_ZYX = 9,
 };
 
 /* math node clamp */
@@ -1295,6 +1317,23 @@ enum {
   NODE_VECTOR_MATH_SINE = 21,
   NODE_VECTOR_MATH_COSINE = 22,
   NODE_VECTOR_MATH_TANGENT = 23,
+};
+
+/* Boolean math node operations. */
+enum {
+  NODE_BOOLEAN_MATH_AND = 0,
+  NODE_BOOLEAN_MATH_OR = 1,
+  NODE_BOOLEAN_MATH_NOT = 2,
+};
+
+/* Float compare node operations. */
+enum {
+  NODE_FLOAT_COMPARE_LESS_THAN = 0,
+  NODE_FLOAT_COMPARE_LESS_EQUAL = 1,
+  NODE_FLOAT_COMPARE_GREATER_THAN = 2,
+  NODE_FLOAT_COMPARE_GREATER_EQUAL = 3,
+  NODE_FLOAT_COMPARE_EQUAL = 4,
+  NODE_FLOAT_COMPARE_NOT_EQUAL = 5,
 };
 
 /* Clamp node types. */
@@ -1388,5 +1427,17 @@ typedef enum NodeShaderOutputTarget {
   SHD_OUTPUT_EEVEE = 1,
   SHD_OUTPUT_CYCLES = 2,
 } NodeShaderOutputTarget;
+
+/* Particle Time Step Event node */
+typedef enum NodeSimParticleTimeStepEventType {
+  NODE_PARTICLE_TIME_STEP_EVENT_BEGIN = 0,
+  NODE_PARTICLE_TIME_STEP_EVENT_END = 1,
+} NodeSimParticleTimeStepEventType;
+
+/* Simulation Time node */
+typedef enum NodeSimInputTimeType {
+  NODE_SIM_INPUT_SIMULATION_TIME = 0,
+  NODE_SIM_INPUT_SCENE_TIME = 1,
+} NodeSimInputTimeType;
 
 #endif

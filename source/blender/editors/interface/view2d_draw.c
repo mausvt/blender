@@ -32,14 +32,15 @@
 #include "DNA_userdef_types.h"
 
 #include "BLI_array.h"
-#include "BLI_utildefines.h"
-#include "BLI_rect.h"
 #include "BLI_math.h"
-#include "BLI_timecode.h"
+#include "BLI_rect.h"
 #include "BLI_string.h"
+#include "BLI_timecode.h"
+#include "BLI_utildefines.h"
 
 #include "GPU_immediate.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
 #include "WM_api.h"
 
@@ -173,30 +174,54 @@ static void get_parallel_lines_draw_steps(const ParallelLinesSet *lines,
   }
 }
 
+/**
+ * \param rect_mask: Region size in pixels.
+ */
 static void draw_parallel_lines(const ParallelLinesSet *lines,
                                 const rctf *rect,
-                                const uchar *color,
+                                const rcti *rect_mask,
+                                const uchar color[3],
                                 char direction)
 {
   float first;
-  uint steps;
+  uint steps, steps_max;
 
   if (direction == 'v') {
     get_parallel_lines_draw_steps(lines, rect->xmin, rect->xmax, &first, &steps);
+    steps_max = BLI_rcti_size_x(rect_mask);
   }
   else {
     BLI_assert(direction == 'h');
     get_parallel_lines_draw_steps(lines, rect->ymin, rect->ymax, &first, &steps);
+    steps_max = BLI_rcti_size_y(rect_mask);
   }
 
   if (steps == 0) {
     return;
   }
 
+  if (UNLIKELY(steps >= steps_max)) {
+    /* Note that we could draw a solid color,
+     * however this flickers because of numeric instability when zoomed out. */
+    return;
+  }
+
   GPUVertFormat *format = immVertexFormat();
   uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
-  immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+  if (U.pixelsize > 1.0f) {
+    float viewport[4];
+    GPU_viewport_size_get_f(viewport);
+
+    immBindBuiltinProgram(GPU_SHADER_3D_POLYLINE_UNIFORM_COLOR);
+    immUniform2fv("viewportSize", &viewport[2]);
+    /* -1.0f offset here  is because the line is too fat due to the builtin anti-aliasing.
+     * TODO make a variant or a uniform to toggle it off. */
+    immUniform1f("lineWidth", U.pixelsize - 1.0f);
+  }
+  else {
+    immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+  }
   immUniformColor3ubv(color);
   immBegin(GPU_PRIM_LINES, steps * 2);
 
@@ -221,12 +246,12 @@ static void draw_parallel_lines(const ParallelLinesSet *lines,
 
 static void view2d_draw_lines_internal(const View2D *v2d,
                                        const ParallelLinesSet *lines,
-                                       const uchar *color,
+                                       const uchar color[3],
                                        char direction)
 {
   GPU_matrix_push_projection();
   UI_view2d_view_ortho(v2d);
-  draw_parallel_lines(lines, &v2d->cur, color, direction);
+  draw_parallel_lines(lines, &v2d->cur, &v2d->mask, color, direction);
   GPU_matrix_pop_projection();
 }
 
@@ -235,17 +260,18 @@ static void view2d_draw_lines(const View2D *v2d,
                               bool display_minor_lines,
                               char direction)
 {
-  uchar major_color[3];
-  uchar minor_color[3];
-  UI_GetThemeColor3ubv(TH_GRID, major_color);
-  UI_GetThemeColorShade3ubv(TH_GRID, 16, minor_color);
-
-  ParallelLinesSet major_lines;
-  major_lines.distance = major_distance;
-  major_lines.offset = 0;
-  view2d_draw_lines_internal(v2d, &major_lines, major_color, direction);
+  {
+    uchar major_color[3];
+    UI_GetThemeColor3ubv(TH_GRID, major_color);
+    ParallelLinesSet major_lines;
+    major_lines.distance = major_distance;
+    major_lines.offset = 0;
+    view2d_draw_lines_internal(v2d, &major_lines, major_color, direction);
+  }
 
   if (display_minor_lines) {
+    uchar minor_color[3];
+    UI_GetThemeColorShade3ubv(TH_GRID, 16, minor_color);
     ParallelLinesSet minor_lines;
     minor_lines.distance = major_distance;
     minor_lines.offset = major_distance / 2.0f;
@@ -259,7 +285,7 @@ static void view2d_draw_lines(const View2D *v2d,
 typedef void (*PositionToString)(
     void *user_data, float v2d_pos, float v2d_step, uint max_len, char *r_str);
 
-static void draw_horizontal_scale_indicators(const ARegion *ar,
+static void draw_horizontal_scale_indicators(const ARegion *region,
                                              const View2D *v2d,
                                              float distance,
                                              const rcti *rect,
@@ -270,9 +296,6 @@ static void draw_horizontal_scale_indicators(const ARegion *ar,
   if (UI_view2d_scale_get_x(v2d) <= 0.0f) {
     return;
   }
-
-  GPU_matrix_push_projection();
-  wmOrtho2_region_pixelspace(ar);
 
   float start;
   uint steps;
@@ -285,7 +308,14 @@ static void draw_horizontal_scale_indicators(const ARegion *ar,
                                   UI_view2d_region_to_view_x(v2d, rect->xmax),
                                   &start,
                                   &steps);
+    const uint steps_max = BLI_rcti_size_x(&v2d->mask);
+    if (UNLIKELY(steps >= steps_max)) {
+      return;
+    }
   }
+
+  GPU_matrix_push_projection();
+  wmOrtho2_region_pixelspace(region);
 
   const int font_id = BLF_default();
   UI_FontThemeColor(font_id, colorid);
@@ -313,7 +343,7 @@ static void draw_horizontal_scale_indicators(const ARegion *ar,
   GPU_matrix_pop_projection();
 }
 
-static void draw_vertical_scale_indicators(const ARegion *ar,
+static void draw_vertical_scale_indicators(const ARegion *region,
                                            const View2D *v2d,
                                            float distance,
                                            float display_offset,
@@ -326,9 +356,6 @@ static void draw_vertical_scale_indicators(const ARegion *ar,
     return;
   }
 
-  GPU_matrix_push_projection();
-  wmOrtho2_region_pixelspace(ar);
-
   float start;
   uint steps;
   {
@@ -340,7 +367,14 @@ static void draw_vertical_scale_indicators(const ARegion *ar,
                                   UI_view2d_region_to_view_y(v2d, rect->ymax),
                                   &start,
                                   &steps);
+    const uint steps_max = BLI_rcti_size_y(&v2d->mask);
+    if (UNLIKELY(steps >= steps_max)) {
+      return;
+    }
   }
+
+  GPU_matrix_push_projection();
+  wmOrtho2_region_pixelspace(region);
 
   const int font_id = BLF_default();
   UI_FontThemeColor(font_id, colorid);
@@ -415,9 +449,7 @@ float UI_view2d_grid_resolution_x__frames_or_seconds(const struct View2D *v2d,
   if (display_seconds) {
     return view2d_major_step_x__time(v2d, scene);
   }
-  else {
-    return view2d_major_step_x__continuous(v2d);
-  }
+  return view2d_major_step_x__continuous(v2d);
 }
 
 float UI_view2d_grid_resolution_y__values(const struct View2D *v2d)
@@ -479,51 +511,53 @@ void UI_view2d_draw_lines_x__frames_or_seconds(const View2D *v2d,
 /* Scale indicator text drawing API
  **************************************************/
 
-static void UI_view2d_draw_scale_x__discrete_values(const ARegion *ar,
+static void UI_view2d_draw_scale_x__discrete_values(const ARegion *region,
                                                     const View2D *v2d,
                                                     const rcti *rect,
                                                     int colorid)
 {
   float number_step = view2d_major_step_x__discrete(v2d);
   draw_horizontal_scale_indicators(
-      ar, v2d, number_step, rect, view_to_string__frame_number, NULL, colorid);
+      region, v2d, number_step, rect, view_to_string__frame_number, NULL, colorid);
 }
 
 static void UI_view2d_draw_scale_x__discrete_time(
-    const ARegion *ar, const View2D *v2d, const rcti *rect, const Scene *scene, int colorid)
+    const ARegion *region, const View2D *v2d, const rcti *rect, const Scene *scene, int colorid)
 {
   float step = view2d_major_step_x__time(v2d, scene);
   draw_horizontal_scale_indicators(
-      ar, v2d, step, rect, view_to_string__time, (void *)scene, colorid);
+      region, v2d, step, rect, view_to_string__time, (void *)scene, colorid);
 }
 
-static void UI_view2d_draw_scale_x__values(const ARegion *ar,
+static void UI_view2d_draw_scale_x__values(const ARegion *region,
                                            const View2D *v2d,
                                            const rcti *rect,
                                            int colorid)
 {
   float step = view2d_major_step_x__continuous(v2d);
-  draw_horizontal_scale_indicators(ar, v2d, step, rect, view_to_string__value, NULL, colorid);
+  draw_horizontal_scale_indicators(region, v2d, step, rect, view_to_string__value, NULL, colorid);
 }
 
-void UI_view2d_draw_scale_y__values(const ARegion *ar,
+void UI_view2d_draw_scale_y__values(const ARegion *region,
                                     const View2D *v2d,
                                     const rcti *rect,
                                     int colorid)
 {
   float step = view2d_major_step_y__continuous(v2d);
-  draw_vertical_scale_indicators(ar, v2d, step, 0.0f, rect, view_to_string__value, NULL, colorid);
+  draw_vertical_scale_indicators(
+      region, v2d, step, 0.0f, rect, view_to_string__value, NULL, colorid);
 }
 
-void UI_view2d_draw_scale_y__block(const ARegion *ar,
+void UI_view2d_draw_scale_y__block(const ARegion *region,
                                    const View2D *v2d,
                                    const rcti *rect,
                                    int colorid)
 {
-  draw_vertical_scale_indicators(ar, v2d, 1.0f, 0.5f, rect, view_to_string__value, NULL, colorid);
+  draw_vertical_scale_indicators(
+      region, v2d, 1.0f, 0.5f, rect, view_to_string__value, NULL, colorid);
 }
 
-void UI_view2d_draw_scale_x__discrete_frames_or_seconds(const struct ARegion *ar,
+void UI_view2d_draw_scale_x__discrete_frames_or_seconds(const struct ARegion *region,
                                                         const struct View2D *v2d,
                                                         const struct rcti *rect,
                                                         const struct Scene *scene,
@@ -531,14 +565,14 @@ void UI_view2d_draw_scale_x__discrete_frames_or_seconds(const struct ARegion *ar
                                                         int colorid)
 {
   if (display_seconds) {
-    UI_view2d_draw_scale_x__discrete_time(ar, v2d, rect, scene, colorid);
+    UI_view2d_draw_scale_x__discrete_time(region, v2d, rect, scene, colorid);
   }
   else {
-    UI_view2d_draw_scale_x__discrete_values(ar, v2d, rect, colorid);
+    UI_view2d_draw_scale_x__discrete_values(region, v2d, rect, colorid);
   }
 }
 
-void UI_view2d_draw_scale_x__frames_or_seconds(const struct ARegion *ar,
+void UI_view2d_draw_scale_x__frames_or_seconds(const struct ARegion *region,
                                                const struct View2D *v2d,
                                                const struct rcti *rect,
                                                const struct Scene *scene,
@@ -546,9 +580,9 @@ void UI_view2d_draw_scale_x__frames_or_seconds(const struct ARegion *ar,
                                                int colorid)
 {
   if (display_seconds) {
-    UI_view2d_draw_scale_x__discrete_time(ar, v2d, rect, scene, colorid);
+    UI_view2d_draw_scale_x__discrete_time(region, v2d, rect, scene, colorid);
   }
   else {
-    UI_view2d_draw_scale_x__values(ar, v2d, rect, colorid);
+    UI_view2d_draw_scale_x__values(region, v2d, rect, colorid);
   }
 }

@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software  Foundation,
+ * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * The Original Code is Copyright (C) 2010 by Nicholas Bishop
@@ -33,12 +33,12 @@
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
-#include "BKE_pbvh.h"
 #include "BKE_ccg.h"
 #include "BKE_context.h"
 #include "BKE_mesh.h"
 #include "BKE_multires.h"
 #include "BKE_paint.h"
+#include "BKE_pbvh.h"
 #include "BKE_subsurf.h"
 
 #include "DEG_depsgraph.h"
@@ -70,13 +70,12 @@ static bool is_effected(PartialVisArea area,
   if (area == PARTIALVIS_ALL) {
     return true;
   }
-  else if (area == PARTIALVIS_MASKED) {
+  if (area == PARTIALVIS_MASKED) {
     return mask > 0.5f;
   }
-  else {
-    bool inside = isect_point_planes_v3(planes, 4, co);
-    return ((inside && area == PARTIALVIS_INSIDE) || (!inside && area == PARTIALVIS_OUTSIDE));
-  }
+
+  bool inside = isect_point_planes_v3(planes, 4, co);
+  return ((inside && area == PARTIALVIS_INSIDE) || (!inside && area == PARTIALVIS_OUTSIDE));
 }
 
 static void partialvis_update_mesh(Object *ob,
@@ -97,7 +96,7 @@ static void partialvis_update_mesh(Object *ob,
   BKE_pbvh_node_get_verts(pbvh, node, &vert_indices, &mvert);
   paint_mask = CustomData_get_layer(&me->vdata, CD_PAINT_MASK);
 
-  sculpt_undo_push_node(ob, node, SCULPT_UNDO_HIDDEN);
+  SCULPT_undo_push_node(ob, node, SCULPT_UNDO_HIDDEN);
 
   for (i = 0; i < totvert; i++) {
     MVert *v = &mvert[vert_indices[i]];
@@ -145,7 +144,7 @@ static void partialvis_update_grids(Depsgraph *depsgraph,
   grid_hidden = BKE_pbvh_grid_hidden(pbvh);
   CCGKey key = *BKE_pbvh_get_grid_key(pbvh);
 
-  sculpt_undo_push_node(ob, node, SCULPT_UNDO_HIDDEN);
+  SCULPT_undo_push_node(ob, node, SCULPT_UNDO_HIDDEN);
 
   for (int i = 0; i < totgrid; i++) {
     int any_hidden = 0;
@@ -274,7 +273,7 @@ static void partialvis_update_bmesh(Object *ob,
   other = BKE_pbvh_bmesh_node_other_verts(node);
   faces = BKE_pbvh_bmesh_node_faces(node);
 
-  sculpt_undo_push_node(ob, node, SCULPT_UNDO_HIDDEN);
+  SCULPT_undo_push_node(ob, node, SCULPT_UNDO_HIDDEN);
 
   partialvis_update_bmesh_verts(bm, unique, action, area, planes, &any_changed, &any_visible);
 
@@ -307,7 +306,7 @@ static void clip_planes_from_rect(bContext *C,
 
   view3d_operator_needs_opengl(C);
   ED_view3d_viewcontext_init(C, &vc, depsgraph);
-  ED_view3d_clipping_calc(&bb, clip_planes, vc.ar, vc.obact, rect);
+  ED_view3d_clipping_calc(&bb, clip_planes, vc.region, vc.obact, rect);
 }
 
 /* If mode is inside, get all PBVH nodes that lie at least partially
@@ -338,7 +337,7 @@ static void get_pbvh_nodes(
 
 static int hide_show_exec(bContext *C, wmOperator *op)
 {
-  ARegion *ar = CTX_wm_region(C);
+  ARegion *region = CTX_wm_region(C);
   Object *ob = CTX_data_active_object(C);
   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
   Mesh *me = ob->data;
@@ -369,10 +368,10 @@ static int hide_show_exec(bContext *C, wmOperator *op)
   /* Start undo. */
   switch (action) {
     case PARTIALVIS_HIDE:
-      sculpt_undo_push_begin("Hide area");
+      SCULPT_undo_push_begin("Hide area");
       break;
     case PARTIALVIS_SHOW:
-      sculpt_undo_push_begin("Show area");
+      SCULPT_undo_push_begin("Show area");
       break;
   }
 
@@ -395,7 +394,7 @@ static int hide_show_exec(bContext *C, wmOperator *op)
   }
 
   /* End undo. */
-  sculpt_undo_push_end();
+  SCULPT_undo_push_end();
 
   /* Ensure that edges and faces get hidden as well (not used by
    * sculpt but it looks wrong when entering editmode otherwise). */
@@ -403,7 +402,10 @@ static int hide_show_exec(bContext *C, wmOperator *op)
     BKE_mesh_flush_hidden_from_verts(me);
   }
 
-  ED_region_tag_redraw(ar);
+  SCULPT_visibility_sync_all_vertex_to_face_sets(ob->sculpt);
+
+  DEG_id_tag_update(&ob->id, ID_RECALC_SHADING);
+  ED_region_tag_redraw(region);
 
   return OPERATOR_FINISHED;
 }
@@ -415,9 +417,7 @@ static int hide_show_invoke(bContext *C, wmOperator *op, const wmEvent *event)
   if (!ELEM(area, PARTIALVIS_ALL, PARTIALVIS_MASKED)) {
     return WM_gesture_box_invoke(C, op, event);
   }
-  else {
-    return op->type->exec(C, op);
-  }
+  return op->type->exec(C, op);
 }
 
 void PAINT_OT_hide_show(struct wmOperatorType *ot)
@@ -450,7 +450,7 @@ void PAINT_OT_hide_show(struct wmOperatorType *ot)
   ot->modal = WM_gesture_box_modal;
   ot->exec = hide_show_exec;
   /* Sculpt-only for now. */
-  ot->poll = sculpt_mode_poll_view3d;
+  ot->poll = SCULPT_mode_poll_view3d;
 
   ot->flag = OPTYPE_REGISTER;
 

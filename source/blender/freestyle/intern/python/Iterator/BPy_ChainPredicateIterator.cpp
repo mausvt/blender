@@ -20,10 +20,10 @@
 
 #include "BPy_ChainPredicateIterator.h"
 
-#include "../BPy_Convert.h"
 #include "../BPy_BinaryPredicate1D.h"
-#include "../Interface1D/BPy_ViewEdge.h"
+#include "../BPy_Convert.h"
 #include "../BPy_UnaryPredicate1D.h"
+#include "../Interface1D/BPy_ViewEdge.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -114,8 +114,8 @@ static int ChainPredicateIterator_init(BPy_ChainPredicateIterator *self,
     Py_INCREF(self->upred);
     Py_INCREF(self->bpred);
   }
-  else if (PyErr_Clear(),
-           (obj3 = obj4 = obj5 = obj6 = 0),
+  else if ((void)PyErr_Clear(),
+           (void)(obj3 = obj4 = obj5 = obj6 = 0),
            PyArg_ParseTupleAndKeywords(args,
                                        kwds,
                                        "O!O!|O!O!O&O!",

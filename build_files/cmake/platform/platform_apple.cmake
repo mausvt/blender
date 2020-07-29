@@ -20,7 +20,11 @@
 
 # Libraries configuration for Apple.
 
-set(MACOSX_DEPLOYMENT_TARGET "10.11")
+if("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64")
+  set(MACOSX_DEPLOYMENT_TARGET 11.00)
+else()
+  set(MACOSX_DEPLOYMENT_TARGET 10.13)
+endif()
 
 macro(find_package_wrapper)
 # do nothing, just satisfy the macro
@@ -222,12 +226,10 @@ if(WITH_OPENCOLLADA)
     -lMathMLSolver
     -lGeneratedSaxParser
     -lbuffer -lftoa -lUTF
-    ${OPENCOLLADA_LIBPATH}/libxml2.a
   )
-  # PCRE is bundled with openCollada
-  # set(PCRE ${LIBDIR}/pcre)
-  # set(PCRE_LIBPATH ${PCRE}/lib)
+  # PCRE and XML2 are bundled with OpenCollada.
   set(PCRE_LIBRARIES pcre)
+  set(XML2_LIBRARIES xml2)
 endif()
 
 if(WITH_SDL)
@@ -380,6 +382,12 @@ if(WITH_CYCLES_OSL)
   endif()
 endif()
 
+if("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64")
+  set(WITH_CYCLES_EMBREE OFF)
+  set(WITH_OPENIMAGEDENOISE OFF)
+  set(WITH_CPU_SSE OFF)
+endif()
+
 if(WITH_CYCLES_EMBREE)
   find_package(Embree 3.8.0 REQUIRED)
   set(PLATFORM_LINKFLAGS "${PLATFORM_LINKFLAGS} -Xlinker -stack_size -Xlinker 0x100000")
@@ -411,11 +419,21 @@ if(WITH_OPENMP)
 
     # Copy libomp.dylib to allow executables like datatoc and tests to work.
     execute_process(
-        COMMAND mkdir -p ${CMAKE_BINARY_DIR}/Resources/lib
-        COMMAND cp -p ${LIBDIR}/openmp/lib/libomp.dylib ${CMAKE_BINARY_DIR}/Resources/lib/libomp.dylib)
+      COMMAND mkdir -p ${CMAKE_BINARY_DIR}/Resources/lib
+      COMMAND cp -p ${LIBDIR}/openmp/lib/libomp.dylib ${CMAKE_BINARY_DIR}/Resources/lib/libomp.dylib
+    )
     execute_process(
-        COMMAND mkdir -p ${CMAKE_BINARY_DIR}/bin/Resources/lib
-        COMMAND cp -p ${LIBDIR}/openmp/lib/libomp.dylib ${CMAKE_BINARY_DIR}/bin/Resources/lib/libomp.dylib)
+      COMMAND mkdir -p ${CMAKE_BINARY_DIR}/bin/Resources/lib
+      COMMAND cp -p ${LIBDIR}/openmp/lib/libomp.dylib ${CMAKE_BINARY_DIR}/bin/Resources/lib/libomp.dylib
+    )
+  endif()
+endif()
+
+if(WITH_XR_OPENXR)
+  find_package(OpenXR-SDK)
+  if(NOT OPENXR_SDK_FOUND)
+    message(WARNING "OpenXR-SDK was not found, disabling WITH_XR_OPENXR")
+    set(WITH_XR_OPENXR OFF)
   endif()
 endif()
 
@@ -431,15 +449,17 @@ if(CMAKE_OSX_ARCHITECTURES MATCHES "x86_64" OR CMAKE_OSX_ARCHITECTURES MATCHES "
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ftree-vectorize  -fvariable-expansion-in-unroller")
   endif()
 else()
-  set(CMAKE_C_FLAGS_RELEASE "-mdynamic-no-pic -fno-strict-aliasing")
-  set(CMAKE_CXX_FLAGS_RELEASE "-mdynamic-no-pic -fno-strict-aliasing")
+  set(CMAKE_C_FLAGS_RELEASE "-O2 -mdynamic-no-pic -fno-strict-aliasing")
+  set(CMAKE_CXX_FLAGS_RELEASE "-O2 -mdynamic-no-pic -fno-strict-aliasing")
 endif()
 
 if(${XCODE_VERSION} VERSION_EQUAL 5 OR ${XCODE_VERSION} VERSION_GREATER 5)
   # Xcode 5 is always using CLANG, which has too low template depth of 128 for libmv
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftemplate-depth=1024")
 endif()
-# Get rid of eventually clashes, we export some symbols explicitly as local
+
+# Avoid conflicts with Luxrender, and other plug-ins that may use the same
+# libraries as Blender with a different version or build options.
 set(PLATFORM_LINKFLAGS
   "${PLATFORM_LINKFLAGS} -Xlinker -unexported_symbols_list -Xlinker '${CMAKE_SOURCE_DIR}/source/creator/osx_locals.map'"
 )

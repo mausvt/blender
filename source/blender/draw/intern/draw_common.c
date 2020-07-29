@@ -22,16 +22,15 @@
 
 #include "DRW_render.h"
 
+#include "GPU_matrix.h"
 #include "GPU_shader.h"
 #include "GPU_texture.h"
 
 #include "UI_resources.h"
 
-#include "BKE_object.h"
-#include "BKE_global.h"
 #include "BKE_colorband.h"
-
-#include "BIF_glutil.h"
+#include "BKE_global.h"
+#include "BKE_object.h"
 
 #include "draw_common.h"
 
@@ -72,6 +71,8 @@ void DRW_globals_update(void)
   UI_COLOR_RGBA_FROM_U8(0xB0, 0x00, 0xB0, 0xFF, gb->colorVertexMissingData);
   UI_GetThemeColor4fv(TH_EDITMESH_ACTIVE, gb->colorEditMeshActive);
   UI_GetThemeColor4fv(TH_EDGE_SELECT, gb->colorEdgeSelect);
+  UI_GetThemeColor4fv(TH_GP_VERTEX, gb->colorGpencilVertex);
+  UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, gb->colorGpencilVertexSelect);
 
   UI_GetThemeColor4fv(TH_EDGE_SEAM, gb->colorEdgeSeam);
   UI_GetThemeColor4fv(TH_EDGE_SHARP, gb->colorEdgeSharp);
@@ -89,8 +90,9 @@ void DRW_globals_update(void)
   UI_GetThemeColor4fv(TH_SKIN_ROOT, gb->colorSkinRoot);
   UI_GetThemeColor4fv(TH_BACK, gb->colorBackground);
   UI_GetThemeColor4fv(TH_BACK_GRAD, gb->colorBackgroundGradient);
-  UI_COLOR_RGBA_FROM_U8(0x26, 0x26, 0x26, 0xFF, gb->colorCheckerLow);
-  UI_COLOR_RGBA_FROM_U8(0x33, 0x33, 0x33, 0xFF, gb->colorCheckerHigh);
+  UI_GetThemeColor4fv(TH_TRANSPARENT_CHECKER_PRIMARY, gb->colorCheckerPrimary);
+  UI_GetThemeColor4fv(TH_TRANSPARENT_CHECKER_SECONDARY, gb->colorCheckerSecondary);
+  gb->sizeChecker = UI_GetThemeValuef(TH_TRANSPARENT_CHECKER_SIZE);
   UI_GetThemeColor4fv(TH_V3D_CLIPPING_BORDER, gb->colorClippingBorder);
 
   /* Custom median color to slightly affect the edit mesh colors. */
@@ -277,7 +279,7 @@ DRWView *DRW_view_create_with_zoffset(const DRWView *parent_view,
     viewdist = 1.0f / max_ff(fabsf(winmat[0][0]), fabsf(winmat[1][1]));
   }
 
-  winmat[3][2] -= bglPolygonOffsetCalc((float *)winmat, viewdist, offset);
+  winmat[3][2] -= GPU_polygon_offset_calc(winmat, viewdist, offset);
 
   return DRW_view_create_sub(parent_view, viewmat, winmat);
 }
@@ -435,7 +437,15 @@ bool DRW_object_is_flat(Object *ob, int *r_axis)
 {
   float dim[3];
 
-  if (!ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL)) {
+  if (!ELEM(ob->type,
+            OB_MESH,
+            OB_CURVE,
+            OB_SURF,
+            OB_FONT,
+            OB_MBALL,
+            OB_HAIR,
+            OB_POINTCLOUD,
+            OB_VOLUME)) {
     /* Non-meshes object cannot be considered as flat. */
     return false;
   }
@@ -498,5 +508,5 @@ static GPUTexture *DRW_create_weight_colorramp_texture(void)
     pixels[i][3] = 1.0f;
   }
 
-  return GPU_texture_create_1d(256, GPU_RGBA8, pixels[0], error);
+  return GPU_texture_create_1d(256, GPU_SRGB8_A8, pixels[0], error);
 }
